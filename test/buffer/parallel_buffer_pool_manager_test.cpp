@@ -17,11 +17,40 @@
 #include "buffer/buffer_pool_manager.h"
 #include "gtest/gtest.h"
 
+#include "common/logger.h"
+
 namespace bustub {
+
+
+// Test some cases
+TEST(ParallelBufferPoolManagerTest, MyOwnTest) {
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 10;
+  const size_t num_instances = 5;
+
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm = new ParallelBufferPoolManager(num_instances, buffer_pool_size, disk_manager);
+
+  page_id_t page_id_temp;
+  auto *page0 = bpm->NewPage(&page_id_temp);
+
+  ASSERT_NE(nullptr, page0);
+  EXPECT_EQ(0, page_id_temp);
+
+  LOG_DEBUG("The bpm has %zu instances", bpm->GetPoolSize());
+  EXPECT_EQ(bpm->GetPoolSize(), buffer_pool_size * num_instances);
+
+  // Shutdown the disk manager and remove the temporary file we created.
+  disk_manager->ShutDown();
+  remove("test.db");
+
+  delete bpm;
+  delete disk_manager;
+}
 
 // NOLINTNEXTLINE
 // Check whether pages containing terminal characters can be recovered
-TEST(ParallelBufferPoolManagerTest, DISABLED_BinaryDataTest) {
+TEST(ParallelBufferPoolManagerTest, BinaryDataTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t num_instances = 5;
@@ -88,7 +117,7 @@ TEST(ParallelBufferPoolManagerTest, DISABLED_BinaryDataTest) {
 }
 
 // NOLINTNEXTLINE
-TEST(ParallelBufferPoolManagerTest, DISABLED_SampleTest) {
+TEST(ParallelBufferPoolManagerTest, SampleTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t num_instances = 5;

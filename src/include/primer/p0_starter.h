@@ -71,7 +71,7 @@ class Matrix {
    * @return The (i,j)th matrix element
    * @throws OUT_OF_RANGE if either index is out of range
    */
-  virtual T GetElement(int i, int j) const = 0;
+  virtual T GetElement(int row, int col) const = 0;
 
   /**
    * Set the (i,j)th matrix element.
@@ -83,7 +83,7 @@ class Matrix {
    * @param val The value to insert
    * @throws OUT_OF_RANGE if either index is out of range
    */
-  virtual void SetElement(int i, int j, T val) = 0;
+  virtual void SetElement(int row, int col, T val) = 0;
 
   /**
    * Fill the elements of the matrix from `source`.
@@ -139,40 +139,40 @@ class RowMatrix : public Matrix<T> {
   /**
    * TODO(P0): Add implementation
    *
-   * Get the (i,j)th matrix element.
+   * Get the (row,col)th matrix element.
    *
    * Throw OUT_OF_RANGE if either index is out of range.
    *
-   * @param i The row index
-   * @param j The column index
-   * @return The (i,j)th matrix element
+   * @param row The row index
+   * @param col The column index
+   * @return The (row,col)th matrix element
    * @throws OUT_OF_RANGE if either index is out of range
    */
-  T GetElement(int i, int j) const override {
-    if (i < 0 || i >= this->rows_ || j < 0 || j >= this->cols_) {
-      LOG_DEBUG("i %d, rows_:%d", i, this->rows_);
-      LOG_DEBUG("j %d, cols_:%d", j, this->cols_);
+  T GetElement(int row, int col) const override {
+    if (row < 0 || row >= this->rows_ || col < 0 || col >= this->cols_) {
+      LOG_DEBUG("row %d, rows_:%d", row, this->rows_);
+      LOG_DEBUG("col %d, cols_:%d", col, this->cols_);
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::GetElement() out of range.");
     }
-    return data_[i][j];
+    return data_[row][col];
     //    throw NotImplementedException{"RowMatrix::GetElement() not implemented."};
   }
 
   /**
-   * Set the (i,j)th matrix element.
+   * Set the (row,col)th matrix element.
    *
    * Throw OUT_OF_RANGE if either index is out of range.
    *
-   * @param i The row index
-   * @param j The column index
+   * @param row The row index
+   * @param col The column index
    * @param val The value to insert
    * @throws OUT_OF_RANGE if either index is out of range
    */
-  void SetElement(int i, int j, T val) override {
-    if (i < 0 || i >= this->rows_ || j < 0 || j >= this->cols_) {
+  void SetElement(int row, int col, T val) override {
+    if (row < 0 || row >= this->rows_ || col < 0 || col >= this->cols_) {
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::SetElement() out of range.");
     }
-    data_[i][j] = val;
+    data_[row][col] = val;
   }
 
   /**
@@ -187,7 +187,7 @@ class RowMatrix : public Matrix<T> {
    * @throws OUT_OF_RANGE if `source` is incorrect size
    */
   void FillFrom(const std::vector<T> &source) override {
-    if (source.size() != static_cast<typename std::vector<T>::size_type>(this->rows_ * this->cols_)) {
+    if (this->rows_ < 0 || this->cols_ < 0 || static_cast<int>(source.size()) != this->rows_ * this->cols_) {
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::FillFrom() out of range.");
     }
     for (size_t i = 0; i < source.size(); ++i) {
@@ -266,13 +266,13 @@ class RowMatrixOperations {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
     RowMatrix<T> *matrix_res = new RowMatrix<T>(rows1, cols2);
-    for (int m = 0; m < rows1; ++m) {
-      for (int n = 0; n < cols2; ++n) {
+    for (int row = 0; row < rows1; ++row) {
+      for (int col = 0; col < cols2; ++col) {
         T val = 0;
         for (int k = 0; k < cols1; ++k) {
-          val += matrixA->GetElement(m, k) * matrixB->GetElement(k, n);
+          val += matrixA->GetElement(row, k) * matrixB->GetElement(k, col);
         }
-        matrix_res->SetElement(m, n, val);
+        matrix_res->SetElement(row, col, val);
       }
     }
     return std::unique_ptr<RowMatrix<T>>(matrix_res);
