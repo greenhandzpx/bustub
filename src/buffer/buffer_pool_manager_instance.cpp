@@ -62,23 +62,31 @@ bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
     return false;
   }
   // Write the page data to the disk.
-  if (page->IsDirty()) {
-    disk_manager_->WritePage(page_id, page->GetData());
-    page->is_dirty_ = false;
+//  if (page->IsDirty()) {
+//    disk_manager_->WritePage(page_id, page->GetData());
+//    page->is_dirty_ = false;
+//  }
+  if (page_id < 3) {
+    LOG_DEBUG("flush page:%d", page_id);
   }
+  disk_manager_->WritePage(page_id, page->GetData());
+  page->is_dirty_ = false;
   return true;
 }
 
 void BufferPoolManagerInstance::FlushAllPgsImp() {
   // You can do it!
+  LOG_DEBUG("flush all pages");
   for (size_t i = 0; i < pool_size_; ++i) {
     if (pages_[i].GetPageId() == INVALID_PAGE_ID) {
       continue;
     }
-    if (pages_[i].IsDirty()) {
-      disk_manager_->WritePage(pages_[i].GetPageId(), pages_[i].GetData());
-      pages_[i].is_dirty_ = false;
-    }
+//    if (pages_[i].IsDirty()) {
+//      disk_manager_->WritePage(pages_[i].GetPageId(), pages_[i].GetData());
+//      pages_[i].is_dirty_ = false;
+//    }
+    disk_manager_->WritePage(pages_[i].GetPageId(), pages_[i].GetData());
+    pages_[i].is_dirty_ = false;
   }
 }
 
@@ -112,7 +120,9 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   page->pin_count_ = 1;
   page->is_dirty_ = false;
   *page_id = page->page_id_;
-  LOG_DEBUG("insert page:%d", *page_id);
+  if (*page_id < 6) {
+    LOG_DEBUG("insert page:%d", *page_id);
+  }
   page_table_.insert({*page_id, frame_id});
   return page;
 }
@@ -126,6 +136,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
   std::lock_guard<std::mutex> guard(latch_);
+  if (page_id < 3) {
+    LOG_DEBUG("fetch page:%d", page_id);
+  }
   if (page_table_.find(page_id) == page_table_.end()) {
     // P doesn't exist
     frame_id_t frame_id;
@@ -181,6 +194,12 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   }
   DeallocatePage(page_id);
   page_table_.erase(page_id);
+  if (page->IsDirty()) {
+    disk_manager_->WritePage(page->GetPageId(), page->GetData());
+  }
+  if (page_id < 3) {
+    LOG_DEBUG("delete page:%d", page_id);
+  }
   page->page_id_ = INVALID_PAGE_ID;
   page->is_dirty_ = false;
   page->ResetMemory();
@@ -201,7 +220,14 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
     LOG_DEBUG("Unpin fail2. PinCount:%d", page->GetPinCount());
     return false;
   }
-  page->is_dirty_ = is_dirty;
+  if (page_id < 3) {
+    LOG_DEBUG("unpin page:%d, is_dirty:%d", page_id, is_dirty);
+  }
+  // Quite important!
+  // If the page is dirty last time, then we should keep it dirty.
+  if (!page->IsDirty()) {
+    page->is_dirty_ = is_dirty;
+  }
   --page->pin_count_;
   replacer_->Unpin(frame_id);
   return true;

@@ -289,15 +289,15 @@ class RowMatrixOperations {
   static std::unique_ptr<RowMatrix<T>> GEMM(const RowMatrix<T> *matrixA, const RowMatrix<T> *matrixB,
                                             const RowMatrix<T> *matrixC) {
     // TODO(P0): Add implementation
-    RowMatrix<T> *res = Multiply(matrixA, matrixB);
+    auto res = Multiply(matrixA, matrixB);
     if (!res) {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
-    res = Add(res, matrixC);
+    res = Add(res.get(), matrixC);
     if (!res) {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
-    return std::unique_ptr<RowMatrix<T>>(res);
+    return res;
   }
 };
 }  // namespace bustub
