@@ -52,9 +52,17 @@ void HashTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t buck
   bucket_page_ids_[bucket_idx] = bucket_page_id;
 }
 
-uint32_t HashTableDirectoryPage::Size() { return 0; }
+uint32_t HashTableDirectoryPage::Size() {
+  return 1 << global_depth_;
+
+}
 
 bool HashTableDirectoryPage::CanShrink() { return false; }
+
+uint32_t HashTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) {
+  uint32_t local_depth = GetLocalDepth(bucket_idx);
+  return (1 << local_depth) - 1;
+}
 
 uint32_t HashTableDirectoryPage::GetLocalDepth(uint32_t bucket_idx) {
   if (bucket_idx >= DIRECTORY_ARRAY_SIZE) {
@@ -91,7 +99,19 @@ uint32_t HashTableDirectoryPage::GetLocalHighBit(uint32_t bucket_idx) {
     return 0;
   }
   // not sure
+  // we will get the localDepth's highest bit
   return 1 << (local_depths_[bucket_idx] - 1);
+}
+
+uint32_t HashTableDirectoryPage::GetSplitImageIndex(uint32_t bucket_idx) {
+  // e.g. when bucket_idx = 1010 and localDepth = 3,
+  // we will get the split index 1110
+  //      when bucket_idx = 1110 and localDepth = 3,
+  // we will get the split index 1010
+  if ((bucket_idx & GetLocalHighBit(bucket_idx)) == 0) {
+    return bucket_idx | GetLocalHighBit(bucket_idx);
+  }
+  return bucket_idx & (~GetLocalHighBit(bucket_idx));
 }
 
 /**

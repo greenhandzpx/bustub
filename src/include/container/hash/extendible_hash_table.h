@@ -12,11 +12,14 @@
 
 #pragma once
 
+#include <sys/types.h>
+#include <cstdint>
 #include <queue>
 #include <string>
 #include <vector>
 
 #include "buffer/buffer_pool_manager.h"
+#include "common/util/hash_util.h"
 #include "concurrency/transaction.h"
 #include "container/hash/hash_function.h"
 #include "storage/page/hash_table_bucket_page.h"
@@ -122,6 +125,11 @@ class ExtendibleHashTable {
   inline uint32_t KeyToPageId(KeyType key, HashTableDirectoryPage *dir_page);
 
   /**
+   * Get the bucket capacity
+   */
+  inline uint32_t GetBucketCapacity(uint32_t GlobalDepth, uint32_t LocalDepth);
+
+  /**
    * Fetches the directory page from the buffer pool manager.
    *
    * @return a pointer to the directory page
@@ -145,6 +153,13 @@ class ExtendibleHashTable {
    * @return whether or not the insertion was successful
    */
   bool SplitInsert(Transaction *transaction, const KeyType &key, const ValueType &value);
+
+  /**
+   * When spliting a bucket, rehash the kvs in the old bucket and decide whether to put them 
+   * into the old or new bucket.
+   */
+  void RehashKvs(HASH_TABLE_BUCKET_TYPE* old_page, HASH_TABLE_BUCKET_TYPE* new_page,
+                  HashTableDirectoryPage* dir_page);
 
   /**
    * Optionally merges an empty bucket into it's pair.  This is called by Remove,
