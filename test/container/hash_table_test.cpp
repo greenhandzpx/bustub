@@ -135,7 +135,7 @@ TEST(HashTableTest, ManyInsertTest) {
   for (int i = 0; i < 5000; i++) {
     EXPECT_TRUE(ht.Insert(nullptr, i, i));
   }
-  for (int i = 0 ; i < 5000; i++) {
+  for (int i = 0; i < 5000; i++) {
     std::vector<int> res;
     ht.GetValue(nullptr, i, &res);
     EXPECT_EQ(1, res.size());
@@ -203,7 +203,7 @@ TEST(HashTableTest, ConcurrentInsertTest) {
   t1.join();
   t2.join();
 
-  for (int i = 0 ; i < 4000; i++) {
+  for (int i = 0; i < 4000; i++) {
     std::vector<int> res;
     ht.GetValue(nullptr, i, &res);
     EXPECT_EQ(1, res.size());
