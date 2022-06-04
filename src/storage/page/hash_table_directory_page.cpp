@@ -13,6 +13,7 @@
 #include "storage/page/hash_table_directory_page.h"
 #include <algorithm>
 #include <unordered_map>
+#include "common/config.h"
 #include "common/logger.h"
 
 namespace bustub {
@@ -26,9 +27,7 @@ void HashTableDirectoryPage::SetLSN(lsn_t lsn) { lsn_ = lsn; }
 
 uint32_t HashTableDirectoryPage::GetGlobalDepth() { return global_depth_; }
 
-uint32_t HashTableDirectoryPage::GetGlobalDepthMask() {
-  return (1 << global_depth_) - 1;
-}
+uint32_t HashTableDirectoryPage::GetGlobalDepthMask() { return (1 << global_depth_) - 1; }
 
 void HashTableDirectoryPage::IncrGlobalDepth() { global_depth_++; }
 
@@ -52,12 +51,24 @@ void HashTableDirectoryPage::SetBucketPageId(uint32_t bucket_idx, page_id_t buck
   bucket_page_ids_[bucket_idx] = bucket_page_id;
 }
 
-uint32_t HashTableDirectoryPage::Size() {
-  return 1 << global_depth_;
+uint32_t HashTableDirectoryPage::Size() { return 1 << global_depth_; }
 
+bool HashTableDirectoryPage::CanShrink() {
+  for (size_t i = 0; i < Size(); ++i) {
+    if (local_depths_[i] >= global_depth_) {
+      return false;
+    }
+  }
+  return true;
 }
 
-bool HashTableDirectoryPage::CanShrink() { return false; }
+uint32_t HashTableDirectoryPage::ShrinkDepth() {
+  uint32_t res = 0;
+  for (size_t i = 0; i < Size(); ++i) {
+    res = local_depths_[i] - global_depth_ > res ? local_depths_[i] - global_depth_ : res;
+  }
+  return res;
+}
 
 uint32_t HashTableDirectoryPage::GetLocalDepthMask(uint32_t bucket_idx) {
   uint32_t local_depth = GetLocalDepth(bucket_idx);
@@ -168,6 +179,7 @@ void HashTableDirectoryPage::VerifyIntegrity() {
 
 void HashTableDirectoryPage::PrintDirectory() {
   LOG_DEBUG("======== DIRECTORY (global_depth_: %u) ========", global_depth_);
+  LOG_DEBUG("| directory_page_id: %u ", page_id_);
   LOG_DEBUG("| bucket_idx | page_id | local_depth |");
   for (uint32_t idx = 0; idx < static_cast<uint32_t>(0x1 << global_depth_); idx++) {
     LOG_DEBUG("|      %u     |     %u     |     %u     |", idx, bucket_page_ids_[idx], local_depths_[idx]);

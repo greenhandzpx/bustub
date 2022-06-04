@@ -21,7 +21,6 @@
 
 namespace bustub {
 
-
 // Test some cases
 TEST(ParallelBufferPoolManagerTest, MyOwnTest) {
   const std::string db_name = "test.db";

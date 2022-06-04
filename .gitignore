@@ -26,6 +26,7 @@
 .cache
 .idea
 
+build_without_debug
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).

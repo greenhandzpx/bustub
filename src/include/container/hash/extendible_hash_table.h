@@ -47,6 +47,8 @@ class ExtendibleHashTable {
   explicit ExtendibleHashTable(const std::string &name, BufferPoolManager *buffer_pool_manager,
                                const KeyComparator &comparator, HashFunction<KeyType> hash_fn);
 
+  ~ExtendibleHashTable();
+
   /**
    * Inserts a key-value pair into the hash table.
    *
@@ -129,6 +131,7 @@ class ExtendibleHashTable {
    */
   inline uint32_t GetBucketCapacity(uint32_t GlobalDepth, uint32_t LocalDepth);
 
+ public:
   /**
    * Fetches the directory page from the buffer pool manager.
    *
@@ -136,6 +139,7 @@ class ExtendibleHashTable {
    */
   HashTableDirectoryPage *FetchDirectoryPage();
 
+ private:
   /**
    * Fetches the a bucket page from the buffer pool manager using the bucket's page_id.
    *
@@ -155,11 +159,10 @@ class ExtendibleHashTable {
   bool SplitInsert(Transaction *transaction, const KeyType &key, const ValueType &value);
 
   /**
-   * When spliting a bucket, rehash the kvs in the old bucket and decide whether to put them 
+   * When spliting a bucket, rehash the kvs in the old bucket and decide whether to put them
    * into the old or new bucket.
    */
-  void RehashKvs(HASH_TABLE_BUCKET_TYPE* old_page, HASH_TABLE_BUCKET_TYPE* new_page,
-                  HashTableDirectoryPage* dir_page);
+  void RehashKvs(HASH_TABLE_BUCKET_TYPE *old_page, HASH_TABLE_BUCKET_TYPE *new_page, HashTableDirectoryPage *dir_page);
 
   /**
    * Optionally merges an empty bucket into it's pair.  This is called by Remove,

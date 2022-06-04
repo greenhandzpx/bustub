@@ -46,19 +46,19 @@ bool HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator 
     }
     if (cmp(key, KeyAt(i)) == 0 && value == ValueAt(i)) {
       // The key already exists.
-      LOG_DEBUG("kv has existed");
+      // LOG_DEBUG("kv has existed");
       return false;
     }
   }
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
-    if (!IsOccupied(i)) {
+    if (!IsReadable(i)) {
       array_[i] = std::make_pair(key, value);
       SetOccupied(i);
       SetReadable(i);
       return true;
     }
   }
-  LOG_DEBUG("no available slot for the kv");
+  // LOG_DEBUG("no available slot for the kv");
   return false;
 }
 
@@ -70,7 +70,7 @@ bool HASH_TABLE_BUCKET_TYPE::Remove(KeyType key, ValueType value, KeyComparator 
       continue;
     }
     if (cmp(key, KeyAt(i)) == 0 && value == ValueAt(i)) {
-      uint8_t* dummy = reinterpret_cast<uint8_t*>(&readable_[i / 8]);
+      uint8_t *dummy = reinterpret_cast<uint8_t *>(&readable_[i / 8]);
       *dummy = *dummy & ~(1 << (i % 8));
       return true;
     }
@@ -81,7 +81,7 @@ bool HASH_TABLE_BUCKET_TYPE::Remove(KeyType key, ValueType value, KeyComparator 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 KeyType HASH_TABLE_BUCKET_TYPE::KeyAt(uint32_t bucket_idx) const {
   if (!IsReadable(bucket_idx)) {
-    LOG_DEBUG("index:%d is not readable", bucket_idx);
+    // LOG_DEBUG("index:%d is not readable", bucket_idx);
     return {};
   }
   return array_[bucket_idx].first;
@@ -90,7 +90,7 @@ KeyType HASH_TABLE_BUCKET_TYPE::KeyAt(uint32_t bucket_idx) const {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 ValueType HASH_TABLE_BUCKET_TYPE::ValueAt(uint32_t bucket_idx) const {
   if (!IsReadable(bucket_idx)) {
-    LOG_DEBUG("index:%d is not readable", bucket_idx);
+    // LOG_DEBUG("index:%d is not readable", bucket_idx);
     return {};
   }
   return array_[bucket_idx].second;
@@ -107,7 +107,7 @@ bool HASH_TABLE_BUCKET_TYPE::IsOccupied(uint32_t bucket_idx) const {
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 void HASH_TABLE_BUCKET_TYPE::SetOccupied(uint32_t bucket_idx) {
-  uint8_t* dummy = reinterpret_cast<uint8_t*>(&occupied_[bucket_idx / 8]);
+  uint8_t *dummy = reinterpret_cast<uint8_t *>(&occupied_[bucket_idx / 8]);
   *dummy = *dummy | (1 << (bucket_idx % 8));
 }
 
@@ -119,7 +119,7 @@ bool HASH_TABLE_BUCKET_TYPE::IsReadable(uint32_t bucket_idx) const {
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 void HASH_TABLE_BUCKET_TYPE::SetReadable(uint32_t bucket_idx) {
-  uint8_t* dummy = reinterpret_cast<uint8_t*>(&readable_[bucket_idx / 8]);
+  uint8_t *dummy = reinterpret_cast<uint8_t *>(&readable_[bucket_idx / 8]);
   *dummy = *dummy | (1 << (bucket_idx % 8));
 }
 

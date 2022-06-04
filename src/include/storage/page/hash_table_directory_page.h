@@ -73,7 +73,6 @@ class HashTableDirectoryPage {
    */
   void SetBucketPageId(uint32_t bucket_idx, page_id_t bucket_page_id);
 
-
   /**
    * GetGlobalDepthMask - returns a mask of global_depth 1's and the rest 0's.
    *
@@ -120,6 +119,11 @@ class HashTableDirectoryPage {
    * @return true if the directory can be shrunk
    */
   bool CanShrink();
+
+  /**
+   * @return the depth that can be shrinked(gd - max{ld})
+   */
+  uint32_t ShrinkDepth();
 
   /**
    * @return the current directory size
