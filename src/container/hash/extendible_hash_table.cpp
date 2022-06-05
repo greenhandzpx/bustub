@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sys/types.h>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -194,53 +195,58 @@ bool HASH_TABLE_TYPE::SplitInsert(Transaction *transaction, const KeyType &key, 
   auto new_bucket_page =
       reinterpret_cast<HASH_TABLE_BUCKET_TYPE *>(buffer_pool_manager_->FetchPage(new_page_id)->GetData());
 
-  if (dir_page->GetGlobalDepth() == dir_page->GetLocalDepth(dir_index)) {
-    // i == i_j
-    for (size_t i = 0; i < dir_page->Size(); ++i) {
-      // e.g. i = 01, GlobalDepth = 2, then new_index = 101(old_index = 001)
-      uint32_t new_index = i | (1 << dir_page->GetGlobalDepth());
-      // let the new index point to the same bucket
-      page_id_t page_id = dir_page->GetBucketPageId(i);
-      dir_page->SetBucketPageId(new_index, page_id);
-      // let the new index's local depth equal to i's
-      dir_page->SetLocalDepth(new_index, dir_page->GetLocalDepth(i));
-    }
-    // increase the global depth(i)
-    dir_page->IncrGlobalDepth();
-  }
+  if (bucket_page->IsFull()) {
+    // maybe there is another thread that modified the bucket page,
+    // so we should check again
 
-  // update all the pointers that refer to the old full page
-  for (size_t i = 0; i < dir_page->Size(); ++i) {
-    if (dir_page->GetLocalDepth(i) == local_depth && (i & dir_page->GetLocalDepthMask(i)) == local_index) {
-      // this index points to the same old bucket
-      dir_page->IncrLocalDepth(i);
-      if (i & dir_page->GetLocalHighBit(i)) {
-        // This index should point to the newly allocated page.
-        dir_page->SetBucketPageId(i, new_page_id);
+    if (dir_page->GetGlobalDepth() == dir_page->GetLocalDepth(dir_index)) {
+      // i == i_j
+      for (size_t i = 0; i < dir_page->Size(); ++i) {
+        // e.g. i = 01, GlobalDepth = 2, then new_index = 101(old_index = 001)
+        uint32_t new_index = i | (1 << dir_page->GetGlobalDepth());
+        // let the new index point to the same bucket
+        page_id_t page_id = dir_page->GetBucketPageId(i);
+        dir_page->SetBucketPageId(new_index, page_id);
+        // let the new index's local depth equal to i's
+        dir_page->SetLocalDepth(new_index, dir_page->GetLocalDepth(i));
+      }
+      // increase the global depth(i)
+      dir_page->IncrGlobalDepth();
+    }
+
+    // update all the pointers that refer to the old full page
+    for (size_t i = 0; i < dir_page->Size(); ++i) {
+      if (dir_page->GetLocalDepth(i) == local_depth && (i & dir_page->GetLocalDepthMask(i)) == local_index) {
+        // this index points to the same old bucket
+        dir_page->IncrLocalDepth(i);
+        if (i & dir_page->GetLocalHighBit(i)) {
+          // This index should point to the newly allocated page.
+          dir_page->SetBucketPageId(i, new_page_id);
+        }
       }
     }
-  }
 
-  // rehash all the kvs in the old page and decide whether they should
-  // be put into the old or new bucket.
-  for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
-    KeyType key = bucket_page->KeyAt(i);
-    // if (comparator_(key, {}) == 0) {
-    //   // tombstone or just nothing
-    //   continue;
-    // }
-    uint32_t key_index = KeyToDirectoryIndex(key, dir_page);
-    if ((key_index & dir_page->GetLocalDepthMask(key_index)) != local_index) {
-      // this key's index is different from the old index
-      // should be put into the new page
-      auto value = bucket_page->ValueAt(i);
-      bucket_page->Remove(key, value, comparator_);
-      new_bucket_page->Insert(key, value, comparator_);
+    // rehash all the kvs in the old page and decide whether they should
+    // be put into the old or new bucket.
+    for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+      KeyType key = bucket_page->KeyAt(i);
+      // if (comparator_(key, {}) == 0) {
+      //   // tombstone or just nothing
+      //   continue;
+      // }
+      uint32_t key_index = KeyToDirectoryIndex(key, dir_page);
+      if ((key_index & dir_page->GetLocalDepthMask(key_index)) != local_index) {
+        // this key's index is different from the old index
+        // should be put into the new page
+        auto value = bucket_page->ValueAt(i);
+        bucket_page->Remove(key, value, comparator_);
+        new_bucket_page->Insert(key, value, comparator_);
+      }
     }
-  }
 
-  buffer_pool_manager_->UnpinPage(bucket_page_id, true);
-  buffer_pool_manager_->UnpinPage(new_page_id, true);
+    buffer_pool_manager_->UnpinPage(bucket_page_id, true);
+    buffer_pool_manager_->UnpinPage(new_page_id, true);
+  }
 
   // After we've done all the split things, we should try to insert this kv .
   // get the bucket page where this kv should be put
@@ -312,6 +318,7 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
   // get the bucket page
   auto bucket_page = FetchBucketPage(page_id);
   // LOG_DEBUG("start merging page %u", KeyToPageId(key, dir_page));
+
   // case (1)
   if (!bucket_page->IsEmpty()) {
     // LOG_DEBUG("page not empty");
@@ -330,21 +337,49 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
     table_latch_.WUnlock();
     return;
   }
-  // case (3)
+
+  // if (page_id == 3) {
   uint32_t split_index = dir_page->GetSplitImageIndex(dir_index);
-  if (dir_page->GetLocalDepth(dir_index) != dir_page->GetLocalDepth(split_index)) {
-    // LOG_DEBUG("local depth not the same as split image");
+  // LOG_DEBUG("index: %u, split index: %u, local depth: %u",
+  // dir_index, split_index, dir_page->GetLocalDepth(split_index));
+  // }
+
+  // case (3)
+  // uint32_t split_index;
+  bool no_equal_ld_split_page = true;
+  for (size_t i = 0; i < dir_page->Size(); ++i) {
+    // find all the dir indexes that point to this empty bucket
+    if (dir_page->GetBucketPageId(i) == page_id) {
+      // LOG_DEBUG("find a index with same page, index %lu, page_id %u", i, page_id);
+      split_index = dir_page->GetSplitImageIndex(i);
+      if (dir_page->GetLocalDepth(i) == dir_page->GetLocalDepth(split_index)) {
+        no_equal_ld_split_page = false;
+        break;
+      }
+    }
+  }
+  if (no_equal_ld_split_page) {
+    // all the split index pages' local depth are unequal to their original index's
+    // LOG_DEBUG("no match split-image index, page_id %u, local depth %u",
+    //           page_id, dir_page->GetLocalDepth(dir_index));
     buffer_pool_manager_->UnpinPage(page_id, false);
     buffer_pool_manager_->UnpinPage(directory_page_id_, false);
     table_latch_.WUnlock();
     return;
   }
+  // uint32_t split_index = dir_page->GetSplitImageIndex(dir_index);
+  // if (dir_page->GetLocalDepth(dir_index) != dir_page->GetLocalDepth(split_index)) {
+  //   // LOG_DEBUG("local depth not the same as split image");
+  //   buffer_pool_manager_->UnpinPage(page_id, false);
+  //   buffer_pool_manager_->UnpinPage(directory_page_id_, false);
+  //   table_latch_.WUnlock();
+  //   return;
+  // }
 
   uint32_t local_depth = dir_page->GetLocalDepth(dir_index);
-  page_id = dir_page->GetBucketPageId(dir_index);
   page_id_t split_page_id = dir_page->GetBucketPageId(split_index);
 
-  // let all the indexes that point to the full page point to their split-image index's page
+  // let all the indexes that point to the empty page point to their split-image index's page
   for (size_t i = 0; i < dir_page->Size(); ++i) {
     if (dir_page->GetBucketPageId(i) == page_id) {
       dir_page->SetBucketPageId(i, split_page_id);
@@ -360,14 +395,37 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
   buffer_pool_manager_->UnpinPage(page_id, false);
   buffer_pool_manager_->DeletePage(page_id);
 
-  // // shrink the dir_page
+  // shrink the dir_page
   if (dir_page->CanShrink()) {
     dir_page->DecrGlobalDepth();
   }
 
-  buffer_pool_manager_->UnpinPage(directory_page_id_, true);
+  auto split_page = FetchBucketPage(split_page_id);
+  // after merging, check whether the split-image is also empty
+  if (split_page->IsEmpty()) {
+    // if split-image is also empty, we should merge recursively
+    buffer_pool_manager_->UnpinPage(split_page_id, false);
+    buffer_pool_manager_->UnpinPage(directory_page_id_, true);
+    table_latch_.WUnlock();
+    Merge(transaction, key, value);
 
-  table_latch_.WUnlock();
+  } else {
+    buffer_pool_manager_->UnpinPage(directory_page_id_, true);
+    table_latch_.WUnlock();
+  }
+}
+
+template <typename KeyType, typename ValueType, typename KeyComparator>
+void HASH_TABLE_TYPE::PrintDirectoryAndBuckets() {
+  HashTableDirectoryPage *dir_page = FetchDirectoryPage();
+  dir_page->PrintDirectory();
+  for (size_t i = 0; i < dir_page->Size(); ++i) {
+    page_id_t page_id = dir_page->GetBucketPageId(i);
+    auto page = FetchBucketPage(page_id);
+    page->PrintBucket();
+    buffer_pool_manager_->UnpinPage(page_id, false);
+  }
+  buffer_pool_manager_->UnpinPage(directory_page_id_, false);
 }
 
 /*****************************************************************************

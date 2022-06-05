@@ -152,11 +152,11 @@ TEST(HashTableTest, ManyInsertTest) {
   ht.VerifyIntegrity();
   htdp->PrintDirectory();
 
-  for (int i = 5000; i < 7500; i++) {
+  for (int i = 5000; i < 10000; i++) {
     EXPECT_TRUE(ht.Insert(nullptr, i, i));
   }
 
-  for (int i = 5000; i < 7500; i++) {
+  for (int i = 5000; i < 10000; i++) {
     std::vector<int> res;
     ht.GetValue(nullptr, i, &res);
     EXPECT_EQ(1, res.size());
@@ -166,12 +166,12 @@ TEST(HashTableTest, ManyInsertTest) {
   ht.VerifyIntegrity();
   htdp->PrintDirectory();
 
-  for (int i = 5000; i < 7500; i++) {
+  for (int i = 5000; i < 10000; i++) {
     EXPECT_TRUE(ht.Remove(nullptr, i, i));
   }
 
   ht.VerifyIntegrity();
-  htdp->PrintDirectory();
+  ht.PrintDirectoryAndBuckets();
 
   disk_manager->ShutDown();
   remove("test.db");
@@ -179,23 +179,21 @@ TEST(HashTableTest, ManyInsertTest) {
   delete bpm;
 }
 
-TEST(HashTableTest, ConcurrentInsertTest) {
+TEST(HashTableTest, DISABLED_ConcurrentInsertTest) {
   auto *disk_manager = new DiskManager("test.db");
   auto *bpm = new BufferPoolManagerInstance(50, disk_manager);
   ExtendibleHashTable<int, int, IntComparator> ht("blah", bpm, IntComparator(), HashFunction<int>());
 
-  HashTableDirectoryPage *htdp = ht.FetchDirectoryPage();
-
   std::thread t1([&ht]() {
     // insert many values
-    for (int i = 0; i < 2000; i++) {
+    for (int i = 0; i < 10000; i++) {
       EXPECT_TRUE(ht.Insert(nullptr, i, i));
     }
   });
 
   std::thread t2([&ht]() {
     // insert many values
-    for (int i = 2000; i < 4000; i++) {
+    for (int i = 10000; i < 20000; i++) {
       EXPECT_TRUE(ht.Insert(nullptr, i, i));
     }
   });
@@ -211,7 +209,7 @@ TEST(HashTableTest, ConcurrentInsertTest) {
   }
 
   ht.VerifyIntegrity();
-  htdp->PrintDirectory();
+  ht.PrintDirectoryAndBuckets();
 
   disk_manager->ShutDown();
   remove("test.db");
@@ -219,19 +217,159 @@ TEST(HashTableTest, ConcurrentInsertTest) {
   delete bpm;
 }
 
-TEST(HashTableTest, DISABLED_SimpleTest) {
+TEST(HashTableTest, ConcurrentInsertRemoveTest) {
+  auto *disk_manager = new DiskManager("test.db");
+  auto *bpm = new BufferPoolManagerInstance(50, disk_manager);
+  ExtendibleHashTable<int, int, IntComparator> ht("blah", bpm, IntComparator(), HashFunction<int>());
+
+  // HashTableDirectoryPage *htdp = ht.FetchDirectoryPage();
+
+  std::thread t1([&ht]() {
+    // insert many values
+    for (int i = 0; i < 10000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    // for (int i = 0; i < 5000; i++) {
+    //   EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    // }
+  });
+
+  std::thread t2([&ht]() {
+    // insert many values
+    for (int i = 10000; i < 20000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    // for (int i = 5000; i < 10000; i++) {
+    //   EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    // }
+  });
+
+  std::thread t3([&ht]() {
+    // insert many values
+    for (int i = 20000; i < 30000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    // for (int i = 10000; i < 15000; i++) {
+    //   EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    // }
+  });
+
+  t1.join();
+  t2.join();
+  t3.join();
+
+  for (int i = 0; i < 30000; i++) {
+    EXPECT_TRUE(ht.Remove(nullptr, i, i));
+  }
+  // for (int i = 0; i < 5000; i++) {
+  //   std::vector<int> res;
+  //   ht.GetValue(nullptr, i, &res);
+  //   EXPECT_EQ(1, res.size());
+  //   EXPECT_EQ(i, res[0]);
+  // }
+
+  // ht.VerifyIntegrity();
+  // htdp->PrintDirectory();
+
+  // for (int i = 0; i < 5000; i++) {
+  //   EXPECT_TRUE(ht.Remove(nullptr, i, i));
+  // }
+
+  // ht.VerifyIntegrity();
+  // htdp->PrintDirectory();
+
+  // for (int i = 0; i < 15000; ++i) {
+  //   std::vector<int> res;
+  //   ht.GetValue(nullptr, i, &res);
+  //   EXPECT_EQ(0, res.size());
+  // }
+
+  ht.VerifyIntegrity();
+  ht.PrintDirectoryAndBuckets();
+  disk_manager->ShutDown();
+  remove("test.db");
+  delete disk_manager;
+  delete bpm;
+}
+
+TEST(HashTableTest, ConcurrentInsertConcurrentRemoveTest) {
+  auto *disk_manager = new DiskManager("test.db");
+  auto *bpm = new BufferPoolManagerInstance(50, disk_manager);
+  ExtendibleHashTable<int, int, IntComparator> ht("blah", bpm, IntComparator(), HashFunction<int>());
+
+  // HashTableDirectoryPage *htdp = ht.FetchDirectoryPage();
+
+  std::thread t1([&ht]() {
+    // insert many values
+    for (int i = 0; i < 10000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    for (int i = 0; i < 10000; i++) {
+      EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    }
+  });
+
+  std::thread t2([&ht]() {
+    // insert many values
+    for (int i = 10000; i < 20000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    for (int i = 10000; i < 20000; i++) {
+      EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    }
+  });
+
+  std::thread t3([&ht]() {
+    // insert many values
+    for (int i = 20000; i < 30000; i++) {
+      EXPECT_TRUE(ht.Insert(nullptr, i, i));
+    }
+
+    for (int i = 20000; i < 30000; i++) {
+      EXPECT_TRUE(ht.Remove(nullptr, i, i));
+    }
+  });
+
+  t1.join();
+  t2.join();
+  t3.join();
+
+
+  ht.VerifyIntegrity();
+  ht.PrintDirectoryAndBuckets();
+
+  disk_manager->ShutDown();
+  remove("test.db");
+  delete disk_manager;
+  delete bpm;
+}
+
+
+TEST(HashTableTest, SimpleTest) {
   auto *disk_manager = new DiskManager("test.db");
   auto *bpm = new BufferPoolManagerInstance(50, disk_manager);
   ExtendibleHashTable<int, int, IntComparator> ht("blah", bpm, IntComparator(), HashFunction<int>());
 
   HashTableDirectoryPage *htdp = ht.FetchDirectoryPage();
 
-  for (int i = 0; i < 500; i++) {
+  for (int i = 0; i < 10000; i++) {
     EXPECT_TRUE(ht.Insert(nullptr, i, i));
   }
 
   ht.VerifyIntegrity();
   htdp->PrintDirectory();
+
+  for (int i = 0; i < 10000; i++) {
+    EXPECT_TRUE(ht.Remove(nullptr, i, i));
+  }
+
+  ht.VerifyIntegrity();
+  ht.PrintDirectoryAndBuckets();
 
   disk_manager->ShutDown();
   remove("test.db");

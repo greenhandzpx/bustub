@@ -40,6 +40,9 @@ bool HASH_TABLE_BUCKET_TYPE::GetValue(KeyType key, KeyComparator cmp, std::vecto
 template <typename KeyType, typename ValueType, typename KeyComparator>
 bool HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator cmp) {
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+    if (!IsOccupied(i)) {
+      break;
+    }
     if (!IsReadable(i)) {
       // tombstone or just nothing
       continue;
@@ -65,13 +68,15 @@ bool HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 bool HASH_TABLE_BUCKET_TYPE::Remove(KeyType key, ValueType value, KeyComparator cmp) {
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+    if (!IsOccupied(i)) {
+      break;
+    }
     if (!IsReadable(i)) {
       // tombstone or just nothing
       continue;
     }
     if (cmp(key, KeyAt(i)) == 0 && value == ValueAt(i)) {
-      uint8_t *dummy = reinterpret_cast<uint8_t *>(&readable_[i / 8]);
-      *dummy = *dummy & ~(1 << (i % 8));
+      RemoveAt(i);
       return true;
     }
   }
@@ -97,7 +102,10 @@ ValueType HASH_TABLE_BUCKET_TYPE::ValueAt(uint32_t bucket_idx) const {
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
-void HASH_TABLE_BUCKET_TYPE::RemoveAt(uint32_t bucket_idx) {}
+void HASH_TABLE_BUCKET_TYPE::RemoveAt(uint32_t bucket_idx) {
+  uint8_t *dummy = reinterpret_cast<uint8_t *>(&readable_[bucket_idx / 8]);
+  *dummy = *dummy & ~(1 << (bucket_idx % 8));
+}
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 bool HASH_TABLE_BUCKET_TYPE::IsOccupied(uint32_t bucket_idx) const {
@@ -132,6 +140,9 @@ template <typename KeyType, typename ValueType, typename KeyComparator>
 uint32_t HASH_TABLE_BUCKET_TYPE::NumReadable() {
   uint32_t cnt = 0;
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+    if (!IsOccupied(i)) {
+      break;
+    }
     if (IsReadable(i)) {
       ++cnt;
     }
