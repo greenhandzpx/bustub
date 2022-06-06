@@ -80,6 +80,9 @@ void BufferPoolManagerInstance::FlushAllPgsImp() {
   LOG_DEBUG("flush all pages");
   for (size_t i = 0; i < pool_size_; ++i) {
     if (pages_[i].GetPageId() == INVALID_PAGE_ID) {
+      // if (page_id == 6) {
+      //   LOG_DEBUG("pin cnt:%u", page->GetPinCount());
+      // }
       continue;
     }
     //    if (pages_[i].IsDirty()) {
@@ -114,6 +117,9 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
     frame_id = free_list_.front();
     free_list_.pop_front();
   }
+
+  replacer_->Pin(frame_id);
+
   Page *page = &pages_[frame_id];
   page->ResetMemory();
   // I'm not sure here...
@@ -160,6 +166,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
       free_list_.pop_front();
       page_table_.insert({page_id, frame_id});
     }
+
+    replacer_->Pin(frame_id);
+
     Page *page = &pages_[frame_id];
     page->page_id_ = page_id;
     // not sure
@@ -175,6 +184,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   Page *page = &pages_[frame_id];
   ++page->pin_count_;
   replacer_->Pin(frame_id);
+
+  assert(page->pin_count_ > 0);
+
   return page;
 }
 
@@ -192,6 +204,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   frame_id_t frame_id = page_table_[page_id];
   Page *page = &pages_[frame_id];
   if (page->GetPinCount() != 0) {
+    LOG_DEBUG("pin cnt:%u", page->GetPinCount());
     return false;
   }
   DeallocatePage(page_id);
@@ -212,14 +225,14 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   std::lock_guard<std::mutex> guard(latch_);
   if (page_table_.find(page_id) == page_table_.end()) {
-    // LOG_DEBUG("unpin fail1.");
+    LOG_DEBUG("unpin fail1.");
     return false;
   }
 
   frame_id_t frame_id = page_table_[page_id];
   Page *page = &pages_[frame_id];
   if (page->GetPinCount() <= 0) {
-    // LOG_DEBUG("Unpin fail2. PinCount:%d", page->GetPinCount());
+    LOG_DEBUG("Unpin fail2. PinCount:%d", page->GetPinCount());
     return false;
   }
   // if (page_id < 3) {
@@ -232,7 +245,14 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
     page->is_dirty_ = is_dirty;
   }
   --page->pin_count_;
-  replacer_->Unpin(frame_id);
+
+  if (page->pin_count_ == 0) {
+    replacer_->Unpin(frame_id);
+  }
+
+  // if (page_id == 6) {
+  //   LOG_DEBUG("pin cnt:%u", page->GetPinCount());
+  // }
   return true;
 }
 

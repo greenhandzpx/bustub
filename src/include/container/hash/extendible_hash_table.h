@@ -164,7 +164,7 @@ class ExtendibleHashTable {
    * When spliting a bucket, rehash the kvs in the old bucket and decide whether to put them
    * into the old or new bucket.
    */
-  void RehashKvs(HASH_TABLE_BUCKET_TYPE *old_page, HASH_TABLE_BUCKET_TYPE *new_page, HashTableDirectoryPage *dir_page);
+  void RehashKvs(HASH_TABLE_BUCKET_TYPE *old_page, HashTableDirectoryPage *dir_page, HASH_TABLE_BUCKET_TYPE *new_page);
 
   /**
    * Optionally merges an empty bucket into it's pair.  This is called by Remove,

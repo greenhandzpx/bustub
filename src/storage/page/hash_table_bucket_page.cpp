@@ -26,6 +26,9 @@ template <typename KeyType, typename ValueType, typename KeyComparator>
 bool HASH_TABLE_BUCKET_TYPE::GetValue(KeyType key, KeyComparator cmp, std::vector<ValueType> *result) {
   bool flag = false;
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+    if (!IsOccupied(i)) {
+      break;
+    }
     if (!IsReadable(i)) {
       continue;
     }
@@ -39,12 +42,22 @@ bool HASH_TABLE_BUCKET_TYPE::GetValue(KeyType key, KeyComparator cmp, std::vecto
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 bool HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator cmp) {
+  size_t slot;
+  bool has_slot = false;
+  size_t extend_slot;
+  bool has_extend_slot = false;
   for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
     if (!IsOccupied(i)) {
+      has_extend_slot = true;
+      extend_slot = i;
       break;
     }
     if (!IsReadable(i)) {
       // tombstone or just nothing
+      if (!has_slot) {
+        slot = i;
+        has_slot = true;
+      }
       continue;
     }
     if (cmp(key, KeyAt(i)) == 0 && value == ValueAt(i)) {
@@ -53,15 +66,21 @@ bool HASH_TABLE_BUCKET_TYPE::Insert(KeyType key, ValueType value, KeyComparator 
       return false;
     }
   }
-  for (size_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
-    if (!IsReadable(i)) {
-      array_[i] = std::make_pair(key, value);
-      SetOccupied(i);
-      SetReadable(i);
-      return true;
-    }
+
+  if (has_slot) {
+    // there is tombstone
+    array_[slot] = std::make_pair(key, value);
+    SetReadable(slot);
+    return true;
   }
-  // LOG_DEBUG("no available slot for the kv");
+
+  if (has_extend_slot) {
+    array_[extend_slot] = std::make_pair(key, value);
+    SetOccupied(extend_slot);
+    SetReadable(extend_slot);
+    return true;
+  }
+
   return false;
 }
 
