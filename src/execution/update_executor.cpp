@@ -11,17 +11,60 @@
 //===----------------------------------------------------------------------===//
 #include <memory>
 
+#include "execution/executor_factory.h"
 #include "execution/executors/update_executor.h"
 
 namespace bustub {
 
 UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx) {}
+    : AbstractExecutor(exec_ctx),
+      plan_(plan),
+      child_executor_(std::move(child_executor)) {
 
-void UpdateExecutor::Init() {}
+  Catalog* catalog = exec_ctx_->GetCatalog();
+  table_info_ = catalog->GetTable(plan_->TableOid());
+  
+}
 
-bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) { return false; }
+void UpdateExecutor::Init() {
+  // values are from child node
+  // auto child_plan = plan_->GetChildPlan();
+  // child_executor_ = ExecutorFactory::CreateExecutor(exec_ctx_, child_plan);
+  LOG_DEBUG("update: init child");
+  // init the child node
+  child_executor_->Init(); 
+}
+
+bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) { 
+
+  Tuple old_tuple;
+  bool res = child_executor_->Next(&old_tuple, rid);
+
+  if (!res) {
+      return res;
+  }
+
+  // LOG_DEBUG("insert: get a tuple from child");
+  Catalog* catalog = exec_ctx_->GetCatalog();
+  TableInfo* table_info = catalog->GetTable(plan_->TableOid());
+  auto table_indexes = catalog->GetTableIndexes(table_info->name_);
+
+  Tuple updated_tuple = GenerateUpdatedTuple(old_tuple);
+  // update the tuple
+  auto table_heap = table_info_->table_.get();
+  table_heap->UpdateTuple(updated_tuple, *rid, exec_ctx_->GetTransaction());
+  // update the index
+  for (auto table_index: table_indexes) {
+    auto index = table_index->index_.get();
+    // first delete
+    index->DeleteEntry(old_tuple, *rid, exec_ctx_->GetTransaction());
+    // then insert
+    index->InsertEntry(updated_tuple, *rid, exec_ctx_->GetTransaction());
+  }
+
+  return true;
+}
 
 Tuple UpdateExecutor::GenerateUpdatedTuple(const Tuple &src_tuple) {
   const auto &update_attrs = plan_->GetUpdateAttr();

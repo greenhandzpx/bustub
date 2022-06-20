@@ -206,7 +206,7 @@ TEST_F(ExecutorTest, SimpleSelectInsertTest) {
 }
 
 // INSERT INTO empty_table2 VALUES (100, 10), (101, 11), (102, 12)
-TEST_F(ExecutorTest, DISABLED_SimpleRawInsertWithIndexTest) {
+TEST_F(ExecutorTest, SimpleRawInsertWithIndexTest) {
   // Create Values to insert
   std::vector<Value> val1{ValueFactory::GetIntegerValue(100), ValueFactory::GetIntegerValue(10)};
   std::vector<Value> val2{ValueFactory::GetIntegerValue(101), ValueFactory::GetIntegerValue(11)};
@@ -271,7 +271,7 @@ TEST_F(ExecutorTest, DISABLED_SimpleRawInsertWithIndexTest) {
 }
 
 // UPDATE test_3 SET colB = colB + 1;
-TEST_F(ExecutorTest, DISABLED_SimpleUpdateTest) {
+TEST_F(ExecutorTest, SimpleUpdateTest) {
   // Construct a sequential scan of the table
   const Schema *out_schema{};
   std::unique_ptr<AbstractPlanNode> scan_plan{};
