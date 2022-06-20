@@ -19,6 +19,7 @@
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
+#include "storage/table/table_heap.h"
 #include "storage/table/table_iterator.h"
 #include "storage/table/tuple.h"
 
@@ -57,7 +58,8 @@ class SeqScanExecutor : public AbstractExecutor {
   uint32_t idx_;
   // TableIterator table_iterator_;
 
-  std::unique_ptr<TableHeap> table_heap_;
+  TableHeap* table_heap_{};
+  // std::unique_ptr<TableHeap> table_heap_;
 
 };
 }  // namespace bustub

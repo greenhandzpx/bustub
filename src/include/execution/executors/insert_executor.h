@@ -18,6 +18,7 @@
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/insert_plan.h"
+#include "storage/table/table_heap.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -57,8 +58,16 @@ class InsertExecutor : public AbstractExecutor {
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
  private:
+
+  void InsertTuple(Tuple& tuple, RID& rid, std::vector<IndexInfo*>& table_indexes);
+
   /** The insert plan node to be executed*/
   const InsertPlanNode *plan_;
+
+  TableHeap* table_heap_{};
+
+  /** THe child executor */
+  std::unique_ptr<AbstractExecutor> child_executor_;
 };
 
 }  // namespace bustub

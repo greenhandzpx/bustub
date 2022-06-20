@@ -26,7 +26,9 @@ SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNod
 void SeqScanExecutor::Init() {
     Catalog* catalog = exec_ctx_->GetCatalog();
     TableInfo* table_info = catalog->GetTable(plan_->GetTableOid());
-    table_heap_ = std::move(table_info->table_);
+    // fetch the raw pointer
+    table_heap_ = table_info->table_.get();
+    // table_heap_ = std::move(table_info->table_);
     auto table_iterator = table_heap_->Begin(exec_ctx_->GetTransaction());
     idx_ = 0;
 }
@@ -50,8 +52,10 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     *rid = tuple->GetRid();
 
     const AbstractExpression* expression = plan_->GetPredicate();
-    bool res = expression->Evaluate(tuple, plan_->OutputSchema()).GetAs<bool>();
-    return res;
+    if (expression == nullptr) {
+        return true;
+    }
+    return expression->Evaluate(tuple, plan_->OutputSchema()).GetAs<bool>();
 }
 
 }  // namespace bustub
