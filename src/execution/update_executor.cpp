@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 #include <memory>
 
+#include "common/config.h"
 #include "execution/executor_factory.h"
 #include "execution/executors/update_executor.h"
 
@@ -42,13 +43,18 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   bool res = child_executor_->Next(&old_tuple, rid);
 
   if (!res) {
-      return res;
+    return res;
   }
+
+  if (rid->GetPageId() == INVALID_PAGE_ID) {
+    // the tuple doesn't satisfy the predicate 
+    return true;
+  }
+
 
   // LOG_DEBUG("insert: get a tuple from child");
   Catalog* catalog = exec_ctx_->GetCatalog();
-  TableInfo* table_info = catalog->GetTable(plan_->TableOid());
-  auto table_indexes = catalog->GetTableIndexes(table_info->name_);
+  auto table_indexes = catalog->GetTableIndexes(table_info_->name_);
 
   Tuple updated_tuple = GenerateUpdatedTuple(old_tuple);
   // update the tuple
@@ -63,6 +69,7 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     index->InsertEntry(updated_tuple, *rid, exec_ctx_->GetTransaction());
   }
 
+  rid->Set(INVALID_PAGE_ID, 0);
   return true;
 }
 

@@ -14,6 +14,7 @@
 
 #include <cstring>
 
+#include "common/logger.h"
 #include "storage/table/tuple.h"
 #include "type/value.h"
 
@@ -31,6 +32,8 @@ class GenericKey {
  public:
   inline void SetFromKey(const Tuple &tuple) {
     // intialize to 0
+    // LOG_DEBUG("KeySize:%ld", KeySize);
+    // LOG_DEBUG("tuple:%d", tuple.GetLength());
     memset(data_, 0, KeySize);
     memcpy(data_, tuple.GetData(), tuple.GetLength());
   }

@@ -77,6 +77,7 @@ void TableGenerator::FillTable(TableInfo *info, TableInsertMeta *table_meta) {
         entry.emplace_back(col[i]);
       }
       RID rid;
+      // LOG_DEBUG("insert value");
       bool inserted = info->table_->InsertTuple(Tuple(entry, &info->schema_), &rid, exec_ctx_->GetTransaction());
       BUSTUB_ASSERT(inserted, "Sequential insertion cannot fail");
       num_inserted++;

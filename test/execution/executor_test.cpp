@@ -82,8 +82,10 @@
 namespace bustub {
 
 // Parameters for index construction
+// using KeyType = GenericKey<16>;
 using KeyType = GenericKey<8>;
 using ValueType = RID;
+// using ComparatorType = GenericComparator<16>;
 using ComparatorType = GenericComparator<8>;
 using HashFunctionType = HashFunction<KeyType>;
 
@@ -106,6 +108,7 @@ TEST_F(ExecutorTest, SimpleSeqScanTest) {
   // Verify
   ASSERT_EQ(result_set.size(), 500);
   for (const auto &tuple : result_set) {
+    // LOG_DEBUG("val: %d", tuple.GetValue(out_schema, out_schema->GetColIdx("colA")).GetAs<int32_t>());
     ASSERT_TRUE(tuple.GetValue(out_schema, out_schema->GetColIdx("colA")).GetAs<int32_t>() < 500);
     ASSERT_TRUE(tuple.GetValue(out_schema, out_schema->GetColIdx("colB")).GetAs<int32_t>() < 10);
   }
@@ -330,14 +333,17 @@ TEST_F(ExecutorTest, SimpleUpdateTest) {
 }
 
 // DELETE FROM test_1 WHERE col_a == 50;
-TEST_F(ExecutorTest, DISABLED_SimpleDeleteTest) {
+TEST_F(ExecutorTest, SimpleDeleteTest) {
   // Construct query plan
   auto table_info = GetExecutorContext()->GetCatalog()->GetTable("test_1");
   auto &schema = table_info->schema_;
   auto col_a = MakeColumnValueExpression(schema, 0, "colA");
+  // auto col_b = MakeColumnValueExpression(schema, 0, "colB");
   auto const50 = MakeConstantValueExpression(ValueFactory::GetIntegerValue(50));
   auto predicate = MakeComparisonExpression(col_a, const50, ComparisonType::Equal);
+  // auto predicate = MakeComparisonExpression(col_a, const50, ComparisonType::LessThanOrEqual);
   auto out_schema1 = MakeOutputSchema({{"colA", col_a}});
+  // auto out_schema1 = MakeOutputSchema({{"colA", col_a}, {"colB", col_b}});
   auto scan_plan1 = std::make_unique<SeqScanPlanNode>(out_schema1, predicate, table_info->oid_);
 
   // Create the index
@@ -349,6 +355,11 @@ TEST_F(ExecutorTest, DISABLED_SimpleDeleteTest) {
 
   std::vector<Tuple> result_set;
   GetExecutionEngine()->Execute(scan_plan1.get(), &result_set, GetTxn(), GetExecutorContext());
+
+  // for (const auto &tuple : result_set) {
+  //   LOG_DEBUG("val: %d", tuple.GetValue(out_schema1, out_schema1->GetColIdx("colA")).GetAs<int32_t>());
+  // }
+
 
   // Verify
   ASSERT_EQ(result_set.size(), 1);

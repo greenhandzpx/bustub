@@ -17,6 +17,7 @@ HASH_TABLE_INDEX_TYPE::ExtendibleHashTableIndex(std::unique_ptr<IndexMetadata> &
 template <typename KeyType, typename ValueType, typename KeyComparator>
 void HASH_TABLE_INDEX_TYPE::InsertEntry(const Tuple &key, RID rid, Transaction *transaction) {
   // construct insert index key
+  // LOG_DEBUG("insert, tuple_size:%d", key.GetLength());
   KeyType index_key;
   index_key.SetFromKey(key);
 
@@ -40,6 +41,8 @@ void HASH_TABLE_INDEX_TYPE::ScanKey(const Tuple &key, std::vector<RID> *result, 
 
   container_.GetValue(transaction, index_key, result);
 }
+
+// The followings are explicit instantiation(in order not to generate repeated same template instance)
 template class ExtendibleHashTableIndex<GenericKey<4>, RID, GenericComparator<4>>;
 template class ExtendibleHashTableIndex<GenericKey<8>, RID, GenericComparator<8>>;
 template class ExtendibleHashTableIndex<GenericKey<16>, RID, GenericComparator<16>>;

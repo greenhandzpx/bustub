@@ -13,6 +13,8 @@
 #include "execution/executors/seq_scan_executor.h"
 #include <cstdint>
 #include "catalog/catalog.h"
+#include "common/config.h"
+#include "common/logger.h"
 #include "execution/expressions/abstract_expression.h"
 #include "storage/table/table_iterator.h"
 
@@ -29,8 +31,13 @@ void SeqScanExecutor::Init() {
     // fetch the raw pointer
     table_heap_ = table_info->table_.get();
     // table_heap_ = std::move(table_info->table_);
-    auto table_iterator = table_heap_->Begin(exec_ctx_->GetTransaction());
+    // auto table_iterator = table_heap_->Begin(exec_ctx_->GetTransaction());
     idx_ = 0;
+    auto table_indexes = catalog->GetTableIndexes(table_info->name_);
+    for (auto table_index: table_indexes) {
+        LOG_DEBUG("index size:%ld", table_index->key_size_);
+    }
+
 }
 
 bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
@@ -48,14 +55,40 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
         return false;
     }
 
-    *tuple = *table_iterator;
-    *rid = tuple->GetRid();
+    // LOG_DEBUG("seq_scan: next");
+    Tuple test_tuple = *table_iterator;
+    // *tuple = *table_iterator;
+    *rid = test_tuple.GetRid();
+
+    // Catalog* catalog = exec_ctx_->GetCatalog();
+    // auto table_info = catalog->GetTable(plan_->GetTableOid());
+
+    std::vector<Value> values;
+    for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
+        values.push_back(test_tuple.GetValue(plan_->OutputSchema(), col));
+    }
+    *tuple = Tuple(values, plan_->OutputSchema());
 
     const AbstractExpression* expression = plan_->GetPredicate();
+    // return true;
+
     if (expression == nullptr) {
         return true;
     }
-    return expression->Evaluate(tuple, plan_->OutputSchema()).GetAs<bool>();
+
+
+
+
+    // if (expression->Evaluate(&test_tuple, &table_info->schema_).GetAs<bool>()) {
+    if (expression->Evaluate(&test_tuple, plan_->OutputSchema()).GetAs<bool>()) {
+        // LOG_DEBUG("tuple:%s", tuple->ToString(plan_->OutputSchema()).c_str());
+        // LOG_DEBUG("rid:%s", rid->ToString().c_str());
+        return true;
+    }
+
+    rid->Set(INVALID_PAGE_ID, 0);
+    // LOG_DEBUG("seq_scan: predicate doesn't satisfy.");
+    return true;
 }
 
 }  // namespace bustub

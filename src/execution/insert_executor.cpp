@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include "common/config.h"
 #include "execution/executor_factory.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/executors/insert_executor.h"
@@ -60,18 +61,26 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
         return false;
     }
 
-    bool res = child_executor_->Next(tuple, rid);
+    Tuple old_tuple;
+    bool res = child_executor_->Next(&old_tuple, rid);
 
     if (!res) {
         return res;
     }
 
+    if (rid->GetPageId() == INVALID_PAGE_ID) {
+        // the tuple doesn't satisfy the predicate 
+        return true;
+    }
+
+
     // LOG_DEBUG("insert: get a tuple from child");
     Catalog* catalog = exec_ctx_->GetCatalog();
     TableInfo* table_info = catalog->GetTable(plan_->TableOid());
     auto table_indexes = catalog->GetTableIndexes(table_info->name_);
-    InsertTuple(*tuple, *rid, table_indexes);
+    InsertTuple(old_tuple, *rid, table_indexes);
 
+    rid->Set(INVALID_PAGE_ID, 0);
     return true;
 }
 
