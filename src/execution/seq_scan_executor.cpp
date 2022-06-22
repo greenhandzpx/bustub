@@ -76,9 +76,6 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
         return true;
     }
 
-
-
-
     // if (expression->Evaluate(&test_tuple, &table_info->schema_).GetAs<bool>()) {
     if (expression->Evaluate(&test_tuple, plan_->OutputSchema()).GetAs<bool>()) {
         // LOG_DEBUG("tuple:%s", tuple->ToString(plan_->OutputSchema()).c_str());
