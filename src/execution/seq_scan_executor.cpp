@@ -22,41 +22,34 @@ namespace bustub {
 
 SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan)
  : AbstractExecutor(exec_ctx), 
-   plan_(plan) {
+   plan_(plan),
+   table_heap_(exec_ctx->GetCatalog()->GetTable(plan->GetTableOid())->table_.get()),
+   table_iterator_(table_heap_->Begin(exec_ctx->GetTransaction())) {
 }
 
 void SeqScanExecutor::Init() {
-    Catalog* catalog = exec_ctx_->GetCatalog();
-    TableInfo* table_info = catalog->GetTable(plan_->GetTableOid());
-    // fetch the raw pointer
-    table_heap_ = table_info->table_.get();
+    // Catalog* catalog = exec_ctx_->GetCatalog();
+    // TableInfo* table_info = catalog->GetTable(plan_->GetTableOid());
+    // // fetch the raw pointer
+    // table_heap_ = table_info->table_.get();
+    table_iterator_ = table_heap_->Begin(exec_ctx_->GetTransaction());
     // table_heap_ = std::move(table_info->table_);
     // auto table_iterator = table_heap_->Begin(exec_ctx_->GetTransaction());
-    idx_ = 0;
-    auto table_indexes = catalog->GetTableIndexes(table_info->name_);
-    for (auto table_index: table_indexes) {
-        LOG_DEBUG("index size:%ld", table_index->key_size_);
-    }
-
+    // auto table_indexes = catalog->GetTableIndexes(table_info->name_);
+    // for (auto table_index: table_indexes) {
+    //     LOG_DEBUG("index size:%ld", table_index->key_size_);
+    // }
 }
 
 bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
 
-    // I think my solution sucks... There must be better solution.
-    
-    auto table_iterator = table_heap_->Begin(exec_ctx_->GetTransaction());
-    uint32_t cnt = 0;
-    while (cnt < idx_) {
-        ++table_iterator;
-        ++cnt;
-    }
-    ++idx_;
-    if (table_iterator == table_heap_->End()) {
+    if (table_iterator_ == table_heap_->End()) {
         return false;
     }
 
     // LOG_DEBUG("seq_scan: next");
-    Tuple test_tuple = *table_iterator;
+    Tuple test_tuple = *table_iterator_;
+    ++table_iterator_;
     // *tuple = *table_iterator;
     *rid = test_tuple.GetRid();
 
@@ -64,13 +57,13 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     // auto table_info = catalog->GetTable(plan_->GetTableOid());
 
     std::vector<Value> values;
+    // fetch all the values in the tuple according to the ouput schema
     for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
         values.push_back(test_tuple.GetValue(plan_->OutputSchema(), col));
     }
     *tuple = Tuple(values, plan_->OutputSchema());
 
     const AbstractExpression* expression = plan_->GetPredicate();
-    // return true;
 
     if (expression == nullptr) {
         return true;

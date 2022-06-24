@@ -71,6 +71,7 @@ bool HashJoinExecutor::Next(Tuple *tuple, RID *rid) {
     rid->Set(INVALID_PAGE_ID, 0);
     return true;
   }
+  // check whether this right tuple's join key matches the tuples in the hash bucket
   if (!CheckBucket(tuple, right_tuple, join_hash_table_[key])) {
     // no matched tuple in the same hash bucket
     rid->Set(INVALID_PAGE_ID, 0);

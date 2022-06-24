@@ -20,6 +20,7 @@
 #include "concurrency/transaction_manager.h"
 #include "execution/executor_context.h"
 #include "execution/executor_factory.h"
+#include "execution/executors/aggregation_executor.h"
 #include "execution/plans/abstract_plan.h"
 #include "storage/table/tuple.h"
 namespace bustub {
@@ -58,13 +59,23 @@ class ExecutionEngine {
 
     // Execute the query plan
     try {
-      Tuple tuple;
-      RID rid;
-      while (executor->Next(&tuple, &rid)) {
-        if (result_set != nullptr) {
-          if (rid.GetPageId() == INVALID_PAGE_ID) {
-            // LOG_DEBUG("invalid tuple");
-          } else {
+      if (plan->GetType() == PlanType::Aggregation) {
+        // The result of aggregate plan can only be computed through the final iteration.
+        RID rid;
+        auto aggregate_executor = dynamic_cast<AggregationExecutor*>(executor.get());
+
+        while (aggregate_executor->Next(result_set, &rid)) {;}
+
+      } else {
+        // other plans can get tuples one by one
+        Tuple tuple;
+        RID rid;
+        while (executor->Next(&tuple, &rid)) {
+          if (result_set != nullptr) {
+            if (rid.GetPageId() == INVALID_PAGE_ID) {
+              // LOG_DEBUG("invalid tuple");
+              continue;
+            }               
             result_set->push_back(tuple);
           }
         }

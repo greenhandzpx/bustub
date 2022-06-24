@@ -178,6 +178,11 @@ class AggregationExecutor : public AbstractExecutor {
    */
   bool Next(Tuple *tuple, RID *rid) override;
 
+  /**
+   * This function is only used by aggregation.
+   */
+  bool Next(std::vector<Tuple>* result_set, RID *rid);
+
   /** @return The output schema for the aggregation */
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
@@ -204,13 +209,24 @@ class AggregationExecutor : public AbstractExecutor {
   }
 
  private:
+  /**
+   * When we get all tuples from child(i.e. construct the whole hash table),
+   * we can aggregate these tuples.
+   */
+  void AggregateAllTuples(std::vector<Tuple>* result_set);
+
   /** The aggregation plan node */
   const AggregationPlanNode *plan_;
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table */
   // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
   // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+
+  /** every time we get all the tuples from child and finish aggregating, set this flag to true */
+  bool finish_traverse_{false};
 };
 }  // namespace bustub

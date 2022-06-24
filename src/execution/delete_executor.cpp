@@ -27,7 +27,7 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
       
 }
 void DeleteExecutor::Init() {
-  LOG_DEBUG("update: init child");
+  // LOG_DEBUG("update: init child");
   // init the child node
   child_executor_->Init(); 
 }
@@ -63,12 +63,12 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
 
   // delete from all the indexes
   for (auto table_index: table_indexes) {
-    LOG_DEBUG("delete from index1");
-    LOG_DEBUG("index size:%ld", table_index->key_size_);
+    // LOG_DEBUG("delete from index1");
+    // LOG_DEBUG("index size:%ld", table_index->key_size_);
     auto index = table_index->index_.get();
     assert(old_tuple.IsAllocated());
     index->DeleteEntry(old_tuple.KeyFromTuple(table_info_->schema_, *table_index->index_->GetKeySchema(), table_index->index_->GetKeyAttrs()), *rid, exec_ctx_->GetTransaction());
-    LOG_DEBUG("delete from index2");
+    // LOG_DEBUG("delete from index2");
   }
 
 
