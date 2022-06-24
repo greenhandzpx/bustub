@@ -20,6 +20,19 @@
 
 namespace bustub {
 
+struct DistinctKey {
+  std::vector<Value> distinct_keys_;
+
+  bool operator==(const DistinctKey &other) const {
+    for (uint32_t i = 0; i < other.distinct_keys_.size(); ++i) {
+      if (distinct_keys_[i].CompareEquals(other.distinct_keys_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
 /**
  * DistinctExecutor removes duplicate rows from child ouput.
  */
@@ -52,6 +65,21 @@ class DistinctExecutor : public AbstractExecutor {
   /** The distinct plan node to be executed */
   const DistinctPlanNode *plan_;
   /** The child executor from which tuples are obtained */
-  std::unique_ptr<AbstractExecutor> child_executor_;
+  std::unique_ptr<AbstractExecutor> child_executor_;  
+
+  struct HashFunction {
+    std::size_t operator()(const bustub::DistinctKey &hash_key) const {
+      size_t curr_hash = 0;
+      for (const auto &key : hash_key.distinct_keys_) {
+        if (!key.IsNull()) {
+          curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+        }
+      }
+      return curr_hash;
+    }
+  };
+
+  /** hash table constructed by outter table    */
+  std::unordered_set<DistinctKey, HashFunction> distinct_hash_table_{};
 };
 }  // namespace bustub

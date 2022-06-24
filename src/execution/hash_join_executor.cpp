@@ -28,6 +28,7 @@ HashJoinExecutor::HashJoinExecutor(ExecutorContext *exec_ctx, const HashJoinPlan
       right_executor_(std::move(right_child)) {}
 
 void HashJoinExecutor::Init() {
+  join_hash_table_.clear();
   // construct the outter hash table 
   // first we should get all the outter table's tuples
   left_executor_->Init();

@@ -53,13 +53,18 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     // *tuple = *table_iterator;
     *rid = test_tuple.GetRid();
 
-    // Catalog* catalog = exec_ctx_->GetCatalog();
-    // auto table_info = catalog->GetTable(plan_->GetTableOid());
+    Catalog* catalog = exec_ctx_->GetCatalog();
+    auto table_info = catalog->GetTable(plan_->GetTableOid());
 
     std::vector<Value> values;
     // fetch all the values in the tuple according to the ouput schema
-    for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
-        values.push_back(test_tuple.GetValue(plan_->OutputSchema(), col));
+    // for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
+    //     values.push_back(test_tuple.GetValue(plan_->OutputSchema(), col));
+    // }
+
+    for (auto& col: plan_->OutputSchema()->GetColumns()) {
+      auto col_expr = col.GetExpr();
+      values.push_back(col_expr->Evaluate(&test_tuple, &table_info->schema_));
     }
     *tuple = Tuple(values, plan_->OutputSchema());
 

@@ -27,6 +27,7 @@ AggregationExecutor::AggregationExecutor(ExecutorContext *exec_ctx, const Aggreg
       aht_iterator_(aht_.Begin()) {}
 
 void AggregationExecutor::Init() {
+  // TODO(greenhandzpx): not sure whether we should clear the hash table first
   child_->Init();
   finish_traverse_ = false;
 }
