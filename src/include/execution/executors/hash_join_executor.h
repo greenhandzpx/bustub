@@ -20,7 +20,57 @@
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
 
+// namespace bustub {
+
+// struct HashJoinKey {
+//   std::vector<Value> join_keys_;
+
+//   bool operator==(const HashJoinKey &other) const {
+//     for (uint32_t i = 0; i < other.join_keys_.size(); ++i) {
+//       if (join_keys_[i].CompareEquals(other.join_keys_[i]) != CmpBool::CmpTrue) {
+//         return false;
+//       }
+//     }
+//     return true;
+//   }
+// };
+
+// }  // namespace bustub
+
+// namespace std {
+
+//   /** Implements std::hash on HashJoinKey */
+//   template <>
+//   struct hash<bustub::HashJoinKey> {
+//     std::size_t operator()(const bustub::HashJoinKey &hash_key) const {
+//       size_t curr_hash = 0;
+//       for (const auto &key : hash_key.join_keys_) {
+//         if (!key.IsNull()) {
+//           curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+//         }
+//       }
+//       return curr_hash;
+//     }
+//   };
+
+// }  // namespace std
+
+
 namespace bustub {
+
+  struct HashJoinKey {
+    std::vector<Value> join_keys_;
+
+    bool operator==(const HashJoinKey &other) const {
+      for (uint32_t i = 0; i < other.join_keys_.size(); ++i) {
+        if (join_keys_[i].CompareEquals(other.join_keys_[i]) != CmpBool::CmpTrue) {
+          return false;
+        }
+      }
+      return true;
+    }
+  };
+
 
 /**
  * HashJoinExecutor executes a nested-loop JOIN on two tables.
@@ -52,8 +102,39 @@ class HashJoinExecutor : public AbstractExecutor {
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
 
  private:
+  /**
+   * Check each tuple in the given bucket.
+   */
+  bool CheckBucket(Tuple* output_tuple, const Tuple& right_tuple, const std::vector<Tuple>& buckets);
+
+  /**
+   * Get the output tuple combined by left tuple and right tuple
+   */
+  void GetOutputTuple(const Tuple& left_tuple, Tuple* output_tuple, const Tuple& right_tuple);
+
   /** The NestedLoopJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
+
+  const std::unique_ptr<AbstractExecutor> left_executor_;
+  const std::unique_ptr<AbstractExecutor> right_executor_;
+
+
+  struct HashFunction {
+    std::size_t operator()(const bustub::HashJoinKey &hash_key) const {
+      size_t curr_hash = 0;
+      for (const auto &key : hash_key.join_keys_) {
+        if (!key.IsNull()) {
+          curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+        }
+      }
+      return curr_hash;
+    }
+  };
+
+  /** hash table constructed by outter table    */
+  std::unordered_map<HashJoinKey, std::vector<Tuple>, HashFunction> join_hash_table_{};
 };
 
 }  // namespace bustub
+
+

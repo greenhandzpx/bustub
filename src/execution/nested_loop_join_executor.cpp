@@ -13,6 +13,7 @@
 #include "execution/executors/nested_loop_join_executor.h"
 #include "catalog/column.h"
 #include "common/config.h"
+#include "execution/expressions/column_value_expression.h"
 
 namespace bustub {
 
@@ -75,35 +76,9 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
     // LOG_DEBUG("nested_join: find a matched tuple");
 
     if (plan_->OutputSchema() != nullptr) {
-      std::unordered_map<std::string, uint32_t> left_columns;
-      std::unordered_map<std::string, uint32_t> right_columns;
-      auto left_schema = left_executor_->GetOutputSchema();
-      auto right_schema = right_executor_->GetOutputSchema();
-
-      std::vector<Value> values;
-
-      for (size_t col = 0; col < left_schema->GetColumnCount(); ++col) {
-        left_columns.emplace(left_schema->GetColumn(col).GetName(), col);
-      }
-
-      for (size_t col = 0; col < right_schema->GetColumnCount(); ++col) {
-        right_columns.emplace(right_schema->GetColumn(col).GetName(), col);
-      }
-
-      for (const auto& col: plan_->OutputSchema()->GetColumns()) {
-        std::string col_name = col.GetName();
-        if (left_columns.find(col_name) != left_columns.end()) {
-          values.push_back(left_tuple_.GetValue(left_schema, left_columns[col_name]));
-          continue;
-        } 
-        if (right_columns.find(col_name) != right_columns.end()) {
-          values.push_back(right_tuple.GetValue(right_schema, right_columns[col_name]));
-          continue;
-        } 
-        LOG_DEBUG("no matched column!");
-      }
-
-      *tuple = Tuple(values, plan_->OutputSchema());
+      GetOutputTuple(left_tuple_, tuple, right_tuple);
+      
+      // here we just left the output rid be left_rid(or right_rid...whatever...)
       *rid = left_rid_;
       return true;
       
@@ -119,4 +94,26 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
 
 }
 
+void NestedLoopJoinExecutor::GetOutputTuple(const Tuple& left_tuple, Tuple* output_tuple, const Tuple& right_tuple) {
+
+  auto left_schema = left_executor_->GetOutputSchema();
+  auto right_schema = right_executor_->GetOutputSchema();
+
+  std::vector<Value> values;
+
+  for (auto& col: plan_->OutputSchema()->GetColumns()) {
+    auto col_expr = dynamic_cast<const ColumnValueExpression*>(col.GetExpr());
+    if (col_expr->GetTupleIdx() == 0) {
+      // left tuple
+      values.push_back(col_expr->Evaluate(&left_tuple, left_schema));
+    } else if (col_expr->GetTupleIdx() == 1) {
+      // right tuple
+      values.push_back(col_expr->Evaluate(&right_tuple, right_schema));
+    } else {
+      LOG_DEBUG("no matched column!");
+    }
+  }
+
+  *output_tuple = Tuple(values, plan_->OutputSchema());
+}
 }  // namespace bustub
