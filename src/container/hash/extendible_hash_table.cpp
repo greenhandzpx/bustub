@@ -129,7 +129,7 @@ bool HASH_TABLE_TYPE::GetValue(Transaction *transaction, const KeyType &key, std
   bool res = bucket_page->GetValue(key, comparator_, result);
 
   if (!res) {
-    LOG_DEBUG("get value fail");
+    // LOG_DEBUG("get value fail");
     bucket_page->PrintBucket();
     // dir_page->PrintDirectory();
   }

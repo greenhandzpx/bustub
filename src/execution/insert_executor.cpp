@@ -47,7 +47,7 @@ void InsertExecutor::Init() {
         // values are from child node
         auto child_plan = plan_->GetChildPlan();
         child_executor_ = ExecutorFactory::CreateExecutor(exec_ctx_, child_plan);
-        LOG_DEBUG("insert: init child");
+        // LOG_DEBUG("insert: init child");
         // init the child node
         child_executor_->Init(); 
     }

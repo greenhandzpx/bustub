@@ -37,7 +37,7 @@ bool AggregationExecutor::Next(Tuple *tuple, RID *rid) {
 
 bool AggregationExecutor::Next(std::vector<Tuple>* result_set, RID *rid) {
   if (finish_traverse_) {
-    LOG_DEBUG("finish traverse");
+    // LOG_DEBUG("finish traverse");
     return false;
   }
 
@@ -47,7 +47,7 @@ bool AggregationExecutor::Next(std::vector<Tuple>* result_set, RID *rid) {
   if (!child_->Next(&tmp_tuple, &tmp_rid)) {
     // We have got all the tuples from child
     AggregateAllTuples(result_set);
-    LOG_DEBUG("set flag = true");
+    // LOG_DEBUG("set flag = true");
     finish_traverse_ = true;
     // here we just randomly give a page id
     rid->Set(0, 0);
@@ -73,7 +73,7 @@ void AggregationExecutor::AggregateAllTuples(std::vector<Tuple>* result_set) {
     return;
   }
 
-  LOG_DEBUG("aggregate: all");
+//   LOG_DEBUG("aggregate: all");
 
   auto having = plan_->GetHaving();
   aht_iterator_ = aht_.Begin();
