@@ -181,7 +181,7 @@ class AggregationExecutor : public AbstractExecutor {
   /**
    * This function is only used by aggregation.
    */
-  bool Next(std::vector<Tuple>* result_set, RID *rid);
+  bool Next(std::vector<Tuple> *result_set, RID *rid);
 
   /** @return The output schema for the aggregation */
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); };
@@ -213,7 +213,7 @@ class AggregationExecutor : public AbstractExecutor {
    * When we get all tuples from child(i.e. construct the whole hash table),
    * we can aggregate these tuples.
    */
-  void AggregateAllTuples(std::vector<Tuple>* result_set);
+  void AggregateAllTuples(std::vector<Tuple> *result_set);
 
   /** The aggregation plan node */
   const AggregationPlanNode *plan_;

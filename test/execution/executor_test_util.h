@@ -31,6 +31,7 @@
 #include "execution/plans/seq_scan_plan.h"
 #include "gtest/gtest.h"
 
+
 namespace bustub {
 
 /**
@@ -109,7 +110,6 @@ class ExecutorTest : public ::testing::Test {
   const AbstractExpression *MakeColumnValueExpression(const Schema &schema, uint32_t tuple_idx,
                                                       const std::string &col_name) {
     uint32_t col_idx = schema.GetColIdx(col_name);
-    LOG_DEBUG("col_idx: %d", col_idx);
     auto col_type = schema.GetColumn(col_idx).GetType();
     allocated_exprs_.emplace_back(std::make_unique<ColumnValueExpression>(tuple_idx, col_idx, col_type));
     return allocated_exprs_.back().get();

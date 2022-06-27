@@ -21,6 +21,7 @@
 #include "execution/executor_context.h"
 #include "execution/executor_factory.h"
 #include "execution/executors/aggregation_executor.h"
+#include "execution/executors/hash_join_executor.h"
 #include "execution/plans/abstract_plan.h"
 #include "storage/table/tuple.h"
 namespace bustub {
@@ -62,9 +63,17 @@ class ExecutionEngine {
       if (plan->GetType() == PlanType::Aggregation) {
         // The result of aggregate plan can only be computed through the final iteration.
         RID rid;
-        auto aggregate_executor = dynamic_cast<AggregationExecutor*>(executor.get());
+        auto aggregate_executor = dynamic_cast<AggregationExecutor *>(executor.get());
 
-        while (aggregate_executor->Next(result_set, &rid)) {;}
+        while (aggregate_executor->Next(result_set, &rid)) {
+        }
+
+      } else if (plan->GetType() == PlanType::HashJoin) {
+        // every invocation of next in hash join will get a vector of tuples
+        RID rid;
+        auto hash_join_executor = dynamic_cast<HashJoinExecutor *>(executor.get());
+        while (hash_join_executor->Next(result_set, &rid)) {
+        }
 
       } else {
         // other plans can get tuples one by one
@@ -75,13 +84,15 @@ class ExecutionEngine {
             if (rid.GetPageId() == INVALID_PAGE_ID) {
               // LOG_DEBUG("invalid tuple");
               continue;
-            }               
+            }
             result_set->push_back(tuple);
           }
         }
       }
     } catch (Exception &e) {
       // TODO(student): handle exceptions
+      e.what();
+      return false;
     }
 
     return true;

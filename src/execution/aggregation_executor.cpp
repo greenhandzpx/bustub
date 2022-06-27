@@ -32,16 +32,13 @@ void AggregationExecutor::Init() {
   finish_traverse_ = false;
 }
 
-bool AggregationExecutor::Next(Tuple *tuple, RID *rid) {
-  return false;
-}
+bool AggregationExecutor::Next(Tuple *tuple, RID *rid) { return false; }
 
-bool AggregationExecutor::Next(std::vector<Tuple>* result_set, RID *rid) {
+bool AggregationExecutor::Next(std::vector<Tuple> *result_set, RID *rid) {
   if (finish_traverse_) {
     // LOG_DEBUG("finish traverse");
     return false;
   }
-
 
   Tuple tmp_tuple;
   RID tmp_rid;
@@ -54,7 +51,7 @@ bool AggregationExecutor::Next(std::vector<Tuple>* result_set, RID *rid) {
     rid->Set(0, 0);
     return true;
   }
-  
+
   if (tmp_rid.GetPageId() == INVALID_PAGE_ID) {
     rid->Set(INVALID_PAGE_ID, 0);
     return true;
@@ -66,15 +63,14 @@ bool AggregationExecutor::Next(std::vector<Tuple>* result_set, RID *rid) {
   // here we just randomly give a page id
   rid->Set(0, 0);
   return true;
-
 }
 
-void AggregationExecutor::AggregateAllTuples(std::vector<Tuple>* result_set) {
+void AggregationExecutor::AggregateAllTuples(std::vector<Tuple> *result_set) {
   if (result_set == nullptr) {
     return;
   }
 
-//   LOG_DEBUG("aggregate: all");
+  //   LOG_DEBUG("aggregate: all");
 
   auto having = plan_->GetHaving();
   aht_iterator_ = aht_.Begin();
@@ -88,7 +84,7 @@ void AggregationExecutor::AggregateAllTuples(std::vector<Tuple>* result_set) {
       continue;
     }
     std::vector<Value> values;
-    for (auto& col: plan_->OutputSchema()->GetColumns()) {
+    for (auto &col : plan_->OutputSchema()->GetColumns()) {
       values.push_back(col.GetExpr()->EvaluateAggregate(group_bys, aggregate_vals));
     }
     result_set->push_back(Tuple(values, plan_->OutputSchema()));
@@ -96,7 +92,6 @@ void AggregationExecutor::AggregateAllTuples(std::vector<Tuple>* result_set) {
     ++aht_iterator_;
   }
 }
-
 
 const AbstractExecutor *AggregationExecutor::GetChildExecutor() const { return child_.get(); }
 

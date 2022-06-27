@@ -27,6 +27,7 @@
 #include "execution/executors/nested_loop_join_executor.h"
 #include "execution/executors/seq_scan_executor.h"
 #include "execution/executors/update_executor.h"
+#include "execution/executors/mock_scan_executor.h"
 #include "storage/index/generic_key.h"
 
 namespace bustub {
@@ -110,7 +111,9 @@ std::unique_ptr<AbstractExecutor> ExecutorFactory::CreateExecutor(ExecutorContex
       auto right = ExecutorFactory::CreateExecutor(exec_ctx, hash_join_plan->GetRightPlan());
       return std::make_unique<HashJoinExecutor>(exec_ctx, hash_join_plan, std::move(left), std::move(right));
     }
-
+    case PlanType::MockScan: {
+      return std::make_unique<MockScanExecutor>(exec_ctx, dynamic_cast<const MockScanPlanNode *>(plan));
+    }
     default:
       UNREACHABLE("Unsupported plan type.");
   }

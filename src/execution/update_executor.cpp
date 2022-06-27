@@ -19,13 +19,9 @@ namespace bustub {
 
 UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx),
-      plan_(plan),
-      child_executor_(std::move(child_executor)) {
-
-  Catalog* catalog = exec_ctx_->GetCatalog();
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {
+  Catalog *catalog = exec_ctx_->GetCatalog();
   table_info_ = catalog->GetTable(plan_->TableOid());
-  
 }
 
 void UpdateExecutor::Init() {
@@ -34,11 +30,10 @@ void UpdateExecutor::Init() {
   // child_executor_ = ExecutorFactory::CreateExecutor(exec_ctx_, child_plan);
   // LOG_DEBUG("update: init child");
   // init the child node
-  child_executor_->Init(); 
+  child_executor_->Init();
 }
 
-bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) { 
-
+bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   Tuple old_tuple;
   bool res = child_executor_->Next(&old_tuple, rid);
 
@@ -47,13 +42,12 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   }
 
   if (rid->GetPageId() == INVALID_PAGE_ID) {
-    // the tuple doesn't satisfy the predicate 
+    // the tuple doesn't satisfy the predicate
     return true;
   }
 
-
   // LOG_DEBUG("insert: get a tuple from child");
-  Catalog* catalog = exec_ctx_->GetCatalog();
+  Catalog *catalog = exec_ctx_->GetCatalog();
   auto table_indexes = catalog->GetTableIndexes(table_info_->name_);
 
   Tuple updated_tuple = GenerateUpdatedTuple(old_tuple);
@@ -61,12 +55,16 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   auto table_heap = table_info_->table_.get();
   table_heap->UpdateTuple(updated_tuple, *rid, exec_ctx_->GetTransaction());
   // update the index
-  for (auto table_index: table_indexes) {
+  for (auto table_index : table_indexes) {
     auto index = table_index->index_.get();
+    Tuple old_key = old_tuple.KeyFromTuple(table_info_->schema_, *table_index->index_->GetKeySchema(),
+                                              table_index->index_->GetKeyAttrs());
+    Tuple new_key = updated_tuple.KeyFromTuple(table_info_->schema_, *table_index->index_->GetKeySchema(),
+                                              table_index->index_->GetKeyAttrs());
     // first delete
-    index->DeleteEntry(old_tuple, *rid, exec_ctx_->GetTransaction());
+    index->DeleteEntry(old_key, *rid, exec_ctx_->GetTransaction());
     // then insert
-    index->InsertEntry(updated_tuple, *rid, exec_ctx_->GetTransaction());
+    index->InsertEntry(new_key, *rid, exec_ctx_->GetTransaction());
   }
 
   rid->Set(INVALID_PAGE_ID, 0);

@@ -18,9 +18,7 @@ namespace bustub {
 
 DistinctExecutor::DistinctExecutor(ExecutorContext *exec_ctx, const DistinctPlanNode *plan,
                                    std::unique_ptr<AbstractExecutor> &&child_executor)
-  : AbstractExecutor(exec_ctx),
-    plan_(plan),
-    child_executor_(std::move(child_executor)) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
 void DistinctExecutor::Init() {
   distinct_hash_table_.clear();
@@ -38,18 +36,18 @@ bool DistinctExecutor::Next(Tuple *tuple, RID *rid) {
     rid->Set(INVALID_PAGE_ID, 0);
     return true;
   }
-  
-//   LOG_DEBUG("key: %s", tmp_tuple.ToString(child_executor_->GetOutputSchema()).c_str());
+
+  //   LOG_DEBUG("key: %s", tmp_tuple.ToString(child_executor_->GetOutputSchema()).c_str());
 
   DistinctKey key;
   for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
     key.distinct_keys_.push_back(tmp_tuple.GetValue(child_executor_->GetOutputSchema(), col));
   }
-//   for (auto& col: plan_->OutputSchema()->GetColumns()) {
-//     auto col_expr = col.GetExpr();
+  //   for (auto& col: plan_->OutputSchema()->GetColumns()) {
+  //     auto col_expr = col.GetExpr();
 
-//     key.distinct_keys_.push_back(col_expr->Evaluate(&tmp_tuple, child_executor_->GetOutputSchema()));
-//   }
+  //     key.distinct_keys_.push_back(col_expr->Evaluate(&tmp_tuple, child_executor_->GetOutputSchema()));
+  //   }
   if (distinct_hash_table_.find(key) == distinct_hash_table_.end()) {
     // There doesn't exist this key in the hash table
     distinct_hash_table_.emplace(key);

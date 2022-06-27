@@ -61,7 +61,7 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
     if (plan_->OutputSchema() != nullptr) {
       std::vector<Value> values;
       for (size_t col = 0; col < plan_->OutputSchema()->GetColumnCount(); ++col) {
-          values.push_back(right_tuple.GetValue(plan_->OutputSchema(), col));
+        values.push_back(right_tuple.GetValue(plan_->OutputSchema(), col));
       }
       *tuple = Tuple(values, plan_->OutputSchema());
       return true;
@@ -70,18 +70,18 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
     return true;
   }
 
-  if (predicate->EvaluateJoin(&left_tuple_, left_executor_->GetOutputSchema(), 
-      &right_tuple, right_executor_->GetOutputSchema()).GetAs<bool>()) {
-    
+  if (predicate
+          ->EvaluateJoin(&left_tuple_, left_executor_->GetOutputSchema(), &right_tuple,
+                         right_executor_->GetOutputSchema())
+          .GetAs<bool>()) {
     // LOG_DEBUG("nested_join: find a matched tuple");
 
     if (plan_->OutputSchema() != nullptr) {
       GetOutputTuple(left_tuple_, tuple, right_tuple);
-      
+
       // here we just left the output rid be left_rid(or right_rid...whatever...)
       *rid = left_rid_;
       return true;
-      
     }
     *rid = left_rid_;
     *tuple = right_tuple;
@@ -91,18 +91,16 @@ bool NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) {
   // not satisfy the predicate
   rid->Set(INVALID_PAGE_ID, 0);
   return true;
-
 }
 
-void NestedLoopJoinExecutor::GetOutputTuple(const Tuple& left_tuple, Tuple* output_tuple, const Tuple& right_tuple) {
-
+void NestedLoopJoinExecutor::GetOutputTuple(const Tuple &left_tuple, Tuple *output_tuple, const Tuple &right_tuple) {
   auto left_schema = left_executor_->GetOutputSchema();
   auto right_schema = right_executor_->GetOutputSchema();
 
   std::vector<Value> values;
 
-  for (auto& col: plan_->OutputSchema()->GetColumns()) {
-    auto col_expr = dynamic_cast<const ColumnValueExpression*>(col.GetExpr());
+  for (auto &col : plan_->OutputSchema()->GetColumns()) {
+    auto col_expr = dynamic_cast<const ColumnValueExpression *>(col.GetExpr());
     if (col_expr->GetTupleIdx() == 0) {
       // left tuple
       values.push_back(col_expr->Evaluate(&left_tuple, left_schema));

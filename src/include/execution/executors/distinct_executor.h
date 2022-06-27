@@ -13,7 +13,9 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/distinct_plan.h"
@@ -65,7 +67,7 @@ class DistinctExecutor : public AbstractExecutor {
   /** The distinct plan node to be executed */
   const DistinctPlanNode *plan_;
   /** The child executor from which tuples are obtained */
-  std::unique_ptr<AbstractExecutor> child_executor_;  
+  std::unique_ptr<AbstractExecutor> child_executor_;
 
   struct HashFunction {
     std::size_t operator()(const bustub::DistinctKey &hash_key) const {
