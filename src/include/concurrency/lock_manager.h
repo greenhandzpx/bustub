@@ -23,6 +23,7 @@
 
 #include "common/config.h"
 #include "common/rid.h"
+#include "common/rwlatch.h"
 #include "concurrency/transaction.h"
 
 namespace bustub {
@@ -40,6 +41,7 @@ class LockManager {
     LockRequest(txn_id_t txn_id, LockMode lock_mode) : txn_id_(txn_id), lock_mode_(lock_mode), granted_(false) {}
 
     txn_id_t txn_id_;
+    Transaction* transaction_;
     LockMode lock_mode_;
     bool granted_;
   };
@@ -51,6 +53,11 @@ class LockManager {
     std::condition_variable cv_;
     // txn_id of an upgrading transaction (if any)
     txn_id_t upgrading_ = INVALID_TXN_ID;
+
+    // bool writer_entered_{false};
+    uint32_t reader_count_{0};
+
+    std::mutex latch_;
   };
 
  public:

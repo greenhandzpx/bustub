@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "common/config.h"
+#include "concurrency/transaction.h"
 #include "execution/executor_factory.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/executors/insert_executor.h"
@@ -82,8 +83,17 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
 }
 
 void InsertExecutor::InsertTuple(Tuple *tuple, RID *rid, std::vector<IndexInfo *> *table_indexes) {
+  Transaction *txn = exec_ctx_->GetTransaction();
+
   // insert the tuple into the table
   table_heap_->InsertTuple(*tuple, rid, exec_ctx_->GetTransaction());
+
+  // acquire the lock(because when we roll back, we will release the lock)
+  exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+  // LOG_DEBUG("rid: %s", rid->ToString().c_str());
+  // // save the write tuples into the txn
+  // txn->AppendTableWriteRecord(TableWriteRecord(*rid, WType::INSERT, *tuple, table_heap_));
+
   Catalog *catalog = exec_ctx_->GetCatalog();
   auto table_info = catalog->GetTable(plan_->TableOid());
   // insert the tuple into the all indexes
@@ -91,6 +101,11 @@ void InsertExecutor::InsertTuple(Tuple *tuple, RID *rid, std::vector<IndexInfo *
     auto index = table_index->index_.get();
     Tuple key = tuple->KeyFromTuple(table_info->schema_, *table_index->index_->GetKeySchema(),
                                               table_index->index_->GetKeyAttrs());
+    // save the write tuples into each index
+    // TODO(greenhandzpx): 
+    // not sure whether the original tuple or the key tuple should be passed to this function
+    txn->AppendTableWriteRecord(IndexWriteRecord(*rid, plan_->TableOid(), WType::INSERT, *tuple, 
+                                table_index->index_oid_, exec_ctx_->GetCatalog()));
     index->InsertEntry(key, *rid, exec_ctx_->GetTransaction());
   }
 }

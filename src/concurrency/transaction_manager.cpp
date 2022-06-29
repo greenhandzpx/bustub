@@ -16,6 +16,7 @@
 #include <unordered_set>
 
 #include "catalog/catalog.h"
+#include "common/logger.h"
 #include "storage/table/table_heap.h"
 
 namespace bustub {
@@ -69,6 +70,7 @@ void TransactionManager::Abort(Transaction *txn) {
       table->RollbackDelete(item.rid_, txn);
     } else if (item.wtype_ == WType::INSERT) {
       // Note that this also releases the lock when holding the page latch.
+      LOG_DEBUG("rid: %s", item.rid_.ToString().c_str());
       table->ApplyDelete(item.rid_, txn);
     } else if (item.wtype_ == WType::UPDATE) {
       table->UpdateTuple(item.tuple_, item.rid_, txn);
@@ -102,6 +104,7 @@ void TransactionManager::Abort(Transaction *txn) {
   table_write_set->clear();
   index_write_set->clear();
 
+  // LOG_DEBUG("Release all the locks.");
   // Release all the locks.
   ReleaseLocks(txn);
   // Release the global transaction latch.

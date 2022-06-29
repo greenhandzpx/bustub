@@ -15,6 +15,7 @@
 #include "catalog/catalog.h"
 #include "common/config.h"
 #include "common/logger.h"
+#include "concurrency/transaction.h"
 #include "execution/expressions/abstract_expression.h"
 #include "storage/table/table_iterator.h"
 
@@ -51,6 +52,12 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
   // *tuple = *table_iterator;
   *rid = test_tuple.GetRid();
 
+  auto lock_mgr = exec_ctx_->GetLockManager();
+  if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED) {
+    // we should fetch the shared lock first
+    lock_mgr->LockShared(exec_ctx_->GetTransaction(), *rid);
+  }
+
   Catalog *catalog = exec_ctx_->GetCatalog();
   auto table_info = catalog->GetTable(plan_->GetTableOid());
 
@@ -65,6 +72,11 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     values.push_back(col_expr->Evaluate(&test_tuple, &table_info->schema_));
   }
   *tuple = Tuple(values, plan_->OutputSchema());
+
+  // if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+  //   // when finishing reading, release the lock
+  //   lock_mgr->Unlock(exec_ctx_->GetTransaction(), *rid);
+  // }
 
   const AbstractExpression *expression = plan_->GetPredicate();
 

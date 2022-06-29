@@ -43,6 +43,24 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     return true;
   }
 
+  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_UNCOMMITTED) {
+    // this level we don't get any shared lock, so we can just acquire the exclusive lock
+    try {
+      exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+    } catch (Exception &e) {
+      e.what();
+      return false;
+    }
+  } else {
+    // The other two levels must hold the shared lock, so we should upgrade the lock
+    try {
+      exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
+    } catch (Exception &e) {
+      e.what();
+      return false;
+    }
+  }
+
   // LOG_DEBUG("tuple:%s", old_tuple.ToString(&table_info_->schema_).c_str());
   // LOG_DEBUG("rid:%s", rid->ToString().c_str());
 
@@ -50,8 +68,13 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   Catalog *catalog = exec_ctx_->GetCatalog();
   auto table_indexes = catalog->GetTableIndexes(table_info_->name_);
 
-  // delete the tuple from the table
   auto table_heap = table_info_->table_.get();
+
+  Transaction *txn = exec_ctx_->GetTransaction();
+  // save the write tuples into the txn
+  txn->AppendTableWriteRecord(TableWriteRecord(*rid, WType::DELETE, old_tuple, table_heap));
+
+  // delete the tuple from the table
   assert(table_heap->MarkDelete(*rid, exec_ctx_->GetTransaction()));
 
   // delete from all the indexes
@@ -59,11 +82,18 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // LOG_DEBUG("delete from index1");
     // LOG_DEBUG("index size:%ld", table_index->key_size_);
     auto index = table_index->index_.get();
+
     assert(old_tuple.IsAllocated());
-    index->DeleteEntry(old_tuple.KeyFromTuple(table_info_->schema_, *table_index->index_->GetKeySchema(),
-                                              table_index->index_->GetKeyAttrs()),
-                       *rid, exec_ctx_->GetTransaction());
+    auto key = old_tuple.KeyFromTuple(table_info_->schema_, *table_index->index_->GetKeySchema(),
+                                              table_index->index_->GetKeyAttrs());
+    index->DeleteEntry(key, *rid, exec_ctx_->GetTransaction());
     // LOG_DEBUG("delete from index2");
+    // save the write tuples into each index
+    // TODO(greenhandzpx): 
+    // not sure whether the original tuple or the key tuple should be passed to this function
+    auto index_write_record = IndexWriteRecord(*rid, plan_->TableOid(), WType::UPDATE, old_tuple,
+                                table_index->index_oid_, exec_ctx_->GetCatalog());
+    txn->AppendTableWriteRecord(index_write_record);
   }
 
   rid->Set(INVALID_PAGE_ID, 0);
