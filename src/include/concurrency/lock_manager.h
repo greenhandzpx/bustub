@@ -112,6 +112,13 @@ class LockManager {
   bool Unlock(Transaction *txn, const RID &rid);
 
  private:
+
+  /**
+   * Abort the specified txn in the request queue
+   */
+  bool AbortTxn(std::list<LockRequest>::iterator iter, LockRequestQueue *request_queue);
+
+
   std::mutex latch_;
 
   /** Lock table for lock requests. */

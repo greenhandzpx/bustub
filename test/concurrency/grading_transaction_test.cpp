@@ -331,11 +331,13 @@ TEST_F(GradingTransactionTest, RepeatableReadsTest) {
     // Third value
     ASSERT_EQ(result_set[2].GetValue(out_schema, out_schema->GetColIdx("colA")).GetAs<int32_t>(), 202);
 
+    printf("txn1 finish scan1\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     result_set.clear();
     GetExecutionEngine()->Execute(&scan_plan, &result_set, txn1, exec_ctx1.get());
 
+    printf("txn1 finish scan2\n");
     // First value
     ASSERT_EQ(result_set[0].GetValue(out_schema, out_schema->GetColIdx("colA")).GetAs<int32_t>(), 200);
     // Second value
@@ -348,11 +350,14 @@ TEST_F(GradingTransactionTest, RepeatableReadsTest) {
 
   std::thread t1([&] {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    printf("txn2 start update\n");
     GetExecutionEngine()->Execute(update_plan.get(), nullptr, txn2, exec_ctx2.get());
+    printf("txn2 finish update\n");
 
     std::vector<Tuple> result_set;
     GetExecutionEngine()->Execute(&scan_plan, &result_set, txn2, exec_ctx2.get());
 
+    printf("txn2 finish scan\n");
     // First value
     ASSERT_EQ(result_set[0].GetValue(out_schema, out_schema->GetColIdx("colA")).GetAs<int32_t>(), 210);
     // Second value

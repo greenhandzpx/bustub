@@ -245,6 +245,8 @@ void TablePage::ApplyDelete(const RID &rid, Transaction *txn, LogManager *log_ma
 }
 
 void TablePage::RollbackDelete(const RID &rid, Transaction *txn, LogManager *log_manager) {
+
+  // LOG_DEBUG("rollback delete, rid:%s", rid.ToString().c_str());
   // Log the rollback.
   if (enable_logging) {
     BUSTUB_ASSERT(txn->IsExclusiveLocked(rid), "We must own an exclusive lock on the RID.");

@@ -190,9 +190,9 @@ class Transaction {
    * @param write_record write record to be added
    */
   inline void AppendTableWriteRecord(const TableWriteRecord &write_record) {
-    LOG_DEBUG("size:%zu", table_write_set_->size());
+    // LOG_DEBUG("size:%zu", table_write_set_->size());
     table_write_set_->push_back(write_record);
-    LOG_DEBUG("size:%zu", table_write_set_->size());
+    // LOG_DEBUG("size:%zu", table_write_set_->size());
   }
 
   /**

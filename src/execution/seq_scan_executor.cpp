@@ -55,7 +55,10 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
   auto lock_mgr = exec_ctx_->GetLockManager();
   if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED) {
     // we should fetch the shared lock first
-    lock_mgr->LockShared(exec_ctx_->GetTransaction(), *rid);
+    if (!exec_ctx_->GetTransaction()->IsSharedLocked(*rid) && !exec_ctx_->GetTransaction()->IsExclusiveLocked(*rid)) {
+      // when repeatable read, we may have aleady fetched the lock before.
+      lock_mgr->LockShared(exec_ctx_->GetTransaction(), *rid);
+    }
   }
 
   Catalog *catalog = exec_ctx_->GetCatalog();
@@ -73,10 +76,10 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
   }
   *tuple = Tuple(values, plan_->OutputSchema());
 
-  // if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
-  //   // when finishing reading, release the lock
-  //   lock_mgr->Unlock(exec_ctx_->GetTransaction(), *rid);
-  // }
+  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+    // when finishing reading, release the lock
+    lock_mgr->Unlock(exec_ctx_->GetTransaction(), *rid);
+  }
 
   const AbstractExpression *expression = plan_->GetPredicate();
 

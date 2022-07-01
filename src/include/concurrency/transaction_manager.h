@@ -89,11 +89,14 @@ class TransactionManager {
    * @param txn the transaction whose locks should be released
    */
   void ReleaseLocks(Transaction *txn) {
+    LOG_DEBUG("release lock");
     std::unordered_set<RID> lock_set;
     for (auto item : *txn->GetExclusiveLockSet()) {
+      LOG_DEBUG("find a exclusive lock");
       lock_set.emplace(item);
     }
     for (auto item : *txn->GetSharedLockSet()) {
+      LOG_DEBUG("find a shared lock");
       lock_set.emplace(item);
     }
     for (auto locked_rid : lock_set) {

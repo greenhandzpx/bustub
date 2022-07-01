@@ -63,6 +63,7 @@ void TransactionManager::Abort(Transaction *txn) {
   txn->SetState(TransactionState::ABORTED);
   // Rollback before releasing the lock.
   auto table_write_set = txn->GetWriteSet();
+  LOG_DEBUG("write set size:%zu", txn->GetWriteSet()->size());
   while (!table_write_set->empty()) {
     auto &item = table_write_set->back();
     auto table = item.table_;
@@ -81,6 +82,8 @@ void TransactionManager::Abort(Transaction *txn) {
   // Rollback index updates
   auto index_write_set = txn->GetIndexWriteSet();
   while (!index_write_set->empty()) {
+
+
     auto &item = index_write_set->back();
     auto catalog = item.catalog_;
     // Metadata identifying the table that should be deleted from.
@@ -89,6 +92,7 @@ void TransactionManager::Abort(Transaction *txn) {
     auto new_key = item.tuple_.KeyFromTuple(table_info->schema_, *(index_info->index_->GetKeySchema()),
                                             index_info->index_->GetKeyAttrs());
     if (item.wtype_ == WType::DELETE) {
+      // LOG_DEBUG("rollback delete index");
       index_info->index_->InsertEntry(new_key, item.rid_, txn);
     } else if (item.wtype_ == WType::INSERT) {
       index_info->index_->DeleteEntry(new_key, item.rid_, txn);

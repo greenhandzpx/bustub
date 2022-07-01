@@ -48,22 +48,25 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     return true;
   }
 
-  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_UNCOMMITTED) {
-    // this level we don't get any shared lock, so we can just acquire the exclusive lock
+  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
+    // repeatable_read must hold the shared lock now, so we should upgrade the lock
+    try {
+      LOG_DEBUG("update: start to upgrade lock");
+      exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
+      LOG_DEBUG("update: upgrade lock");
+    } catch (Exception &e) {
+      e.what();
+      return false;
+    }
+  } else {
+    // the other two levels don't get the shared lock, so we can just acquire the exclusive lock
     try {
       exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
     } catch (Exception &e) {
       e.what();
       return false;
     }
-  } else {
-    // The other two levels must hold the shared lock, so we should upgrade the lock
-    try {
-      exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
-    } catch (Exception &e) {
-      e.what();
-      return false;
-    }
+
   }
 
   // LOG_DEBUG("insert: get a tuple from child");
@@ -94,7 +97,7 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // not sure whether the original tuple or the key tuple should be passed to this function
     auto index_write_record = IndexWriteRecord(*rid, plan_->TableOid(), WType::UPDATE, updated_tuple,
                                 table_index->index_oid_, exec_ctx_->GetCatalog());
-    index_write_record.old_tuple_ = old_key;
+    index_write_record.old_tuple_ = old_tuple;
     txn->AppendTableWriteRecord(index_write_record);
 
     // first delete

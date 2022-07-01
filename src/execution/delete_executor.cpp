@@ -43,22 +43,23 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     return true;
   }
 
-  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_UNCOMMITTED) {
-    // this level we don't get any shared lock, so we can just acquire the exclusive lock
-    try {
-      exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
-    } catch (Exception &e) {
-      e.what();
-      return false;
-    }
-  } else {
-    // The other two levels must hold the shared lock, so we should upgrade the lock
+  if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
+    // repeatable_read must hold the shared lock now, so we should upgrade the lock
     try {
       exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
     } catch (Exception &e) {
       e.what();
       return false;
     }
+  } else {
+    // the other two levels don't get the shared lock, so we can just acquire the exclusive lock
+    try {
+      exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+    } catch (Exception &e) {
+      e.what();
+      return false;
+    }
+
   }
 
   // LOG_DEBUG("tuple:%s", old_tuple.ToString(&table_info_->schema_).c_str());
@@ -71,8 +72,8 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   auto table_heap = table_info_->table_.get();
 
   Transaction *txn = exec_ctx_->GetTransaction();
-  // save the write tuples into the txn
-  txn->AppendTableWriteRecord(TableWriteRecord(*rid, WType::DELETE, old_tuple, table_heap));
+  // // save the write tuples into the txn
+  // txn->AppendTableWriteRecord(TableWriteRecord(*rid, WType::DELETE, old_tuple, table_heap));
 
   // delete the tuple from the table
   assert(table_heap->MarkDelete(*rid, exec_ctx_->GetTransaction()));
@@ -91,7 +92,7 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // save the write tuples into each index
     // TODO(greenhandzpx): 
     // not sure whether the original tuple or the key tuple should be passed to this function
-    auto index_write_record = IndexWriteRecord(*rid, plan_->TableOid(), WType::UPDATE, old_tuple,
+    auto index_write_record = IndexWriteRecord(*rid, plan_->TableOid(), WType::DELETE, old_tuple,
                                 table_index->index_oid_, exec_ctx_->GetCatalog());
     txn->AppendTableWriteRecord(index_write_record);
   }

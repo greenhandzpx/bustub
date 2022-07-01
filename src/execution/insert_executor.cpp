@@ -72,6 +72,25 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     return true;
   }
 
+  // if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
+  //   // repeatable_read must hold the shared lock now, so we should upgrade the lock
+  //   try {
+  //     exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
+  //   } catch (Exception &e) {
+  //     e.what();
+  //     return false;
+  //   }
+  // } else {
+  //   // the other two levels don't get the shared lock, so we can just acquire the exclusive lock
+  //   try {
+  //     exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+  //   } catch (Exception &e) {
+  //     e.what();
+  //     return false;
+  //   }
+
+  // }
+
   // LOG_DEBUG("insert: get a tuple from child");
   Catalog *catalog = exec_ctx_->GetCatalog();
   TableInfo *table_info = catalog->GetTable(plan_->TableOid());
