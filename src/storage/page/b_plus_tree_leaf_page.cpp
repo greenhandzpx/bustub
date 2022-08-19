@@ -32,6 +32,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, in
   SetPageId(page_id);
   SetParentPageId(parent_id);
   SetMaxSize(max_size);
+  SetPageType(IndexPageType::LEAF_PAGE);
+  SetNextPageId(INVALID_PAGE_ID);
 }
 
 /**
@@ -97,7 +99,21 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  return 0;
+  int old_size = GetSize();
+  if (old_size == GetMaxSize()) {
+    // the leaf page is already full, should not insert anymore
+    return -1;
+  }
+  for (int i = 0; i < old_size; ++i) {
+    if (comparator(key, array_[i].first) == 0) {
+      // the key already exists
+      return -1;
+    }
+  }
+  array_[old_size].first = key;
+  array_[old_size].second = value;
+  SetSize(old_size + 1);
+  return GetSize();
 }
 
 /*****************************************************************************
@@ -107,13 +123,28 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {
+  int old_size = GetSize();
+
+  MappingType *items = new MappingType[old_size - old_size/2];
+  for (int i = old_size/2; i < old_size; ++i) {
+    items[i-old_size/2] = array_[i];
+  }
+  recipient->CopyNFrom(items, old_size-old_size/2);
+  delete [] items;
+  SetSize(old_size/2);
+}
 
 /*
  * Copy starting from items, and copy {size} number of elements into me.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {
+  for (int i = 0; i < size; ++i) {
+    array_[i] = items[i];
+  }
+  SetSize(size);
+}
 
 /*****************************************************************************
  * LOOKUP
@@ -125,7 +156,12 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
-  
+  for (int i = 0; i < GetSize(); ++i) {
+    if (comparator(array_[i].first, key) == 0) {
+      *value = array_[i].second;
+      return true;
+    }
+  }
   return false;
 }
 

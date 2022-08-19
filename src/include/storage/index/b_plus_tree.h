@@ -104,6 +104,7 @@ class BPlusTree {
 
   void UpdateRootPageId(int insert_record = 0);
 
+
   /* Debug Routines for FREE!! */
   void ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const;
 
