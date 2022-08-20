@@ -13,6 +13,7 @@
 
 #include "common/config.h"
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
@@ -108,6 +109,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   auto root_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
   root_page->Init(page_id, INVALID_PAGE_ID, internal_max_size_);
   // 2) just insert the kv into leaf page
+  std::cout << "[DEBUG] insert key " << key << " val " << value << std::endl;
   root_page->Insert(key, value, comparator_);
   buffer_pool_manager_->UnpinPage(page_id, true);
 }
@@ -138,11 +140,14 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
         buffer_pool_manager_->UnpinPage(next_page_id, false);
         return false;
       }
+
+      std::cout << "[DEBUG] insert key " << key << " value " << value << std::endl;
       if (leaf_size == leaf_max_size_) {
         // the leaf is full
+        std::cout << "[DEBUG] split a node " << std::endl;
         auto new_page = Split(leaf_page);
         // fetch the middle key of the leaf page and put it into the parent page
-        InsertIntoParent(leaf_page, leaf_page->KeyAt(leaf_size/2), new_page);
+        InsertIntoParent(leaf_page, new_page->KeyAt(0), new_page);
       }
       return true;
     }
@@ -173,6 +178,7 @@ N *BPLUSTREE_TYPE::Split(N *node) {
     new_page->Init(page_id, node->GetParentPageId(), leaf_max_size_);
     auto old_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(node);
     old_node->MoveHalfTo(new_page);
+    old_node->SetNextPageId(page_id);
 
   } else {
     // internal page
@@ -198,7 +204,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
                                       Transaction *transaction) 
 {
-
+  std::cout << "[DEBUG] insert a key " << key << " into parent page\n";
   page_id_t parent_page_id = old_node->GetParentPageId();
 
   if (parent_page_id == INVALID_PAGE_ID) {
@@ -211,7 +217,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     auto new_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(page);
     new_page->Init(new_page_id, INVALID_PAGE_ID, internal_max_size_);
 
-    new_page->PopulateNewRoot(root_page_id_, key, new_page_id);
+    new_page->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
     root_page_id_ = new_page_id;
     UpdateRootPageId(1);
 

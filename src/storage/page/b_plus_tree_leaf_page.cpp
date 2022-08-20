@@ -71,8 +71,10 @@ INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
   // replace with your own code
   if (index <0 || index >= GetSize()) {
+    std::cout << "[ERROR] index " << index << " out of range, size " << GetSize() << "\n";
     return KeyType{};
   }
+  std::cout << "[DEBUG] key " << array_[index].first << " at index " << index << std::endl;
   return array_[index].first;
 }
 
@@ -112,6 +114,8 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
   }
   array_[old_size].first = key;
   array_[old_size].second = value;
+  std::cout << "[DEBUG] insert a key " << key << " value " << value << " into index " << old_size 
+    << std::endl;
   SetSize(old_size + 1);
   return GetSize();
 }
