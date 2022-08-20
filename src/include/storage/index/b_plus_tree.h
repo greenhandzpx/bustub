@@ -80,6 +80,9 @@ class BPlusTree {
   Page *FindLeafPage(const KeyType &key, bool leftMost = false);
 
  private:
+
+  BPlusTreePage *GetLeafPageOfKey(const KeyType &key, page_id_t *page_id);
+
   void StartNewTree(const KeyType &key, const ValueType &value);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr);

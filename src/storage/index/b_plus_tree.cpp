@@ -17,6 +17,7 @@
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/header_page.h"
 
 namespace bustub {
@@ -35,16 +36,13 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::IsEmpty() const { return true; }
-/*****************************************************************************
- * SEARCH
- *****************************************************************************/
+
+
 /*
- * Return the only value that associated with input key
- * This method is used for point query
- * @return : true means key exists
+ * Helper function to get the leaf page of the given key
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) {
+BPlusTreePage *BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, page_id_t *page_id) {
   // fetch the root page and then search the root page
   page_id_t next_page_id = root_page_id_;
 
@@ -59,16 +57,44 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
       ValueType value;
       bool exists = leaf_page->Lookup(key, &value, comparator_);
       if (exists) {
-        result->push_back(value);
+        *page_id = next_page_id;
+        return b_plus_tree_page;
       }
+
       buffer_pool_manager_->UnpinPage(next_page_id, false);
-      return exists;
+      return nullptr;
     }
     auto intern_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(page->GetData());
     buffer_pool_manager_->UnpinPage(next_page_id, false);
     next_page_id = intern_page->Lookup(key, comparator_);
   }
-  return false;
+  return nullptr;
+}
+
+
+/*****************************************************************************
+ * SEARCH
+ *****************************************************************************/
+/*
+ * Return the only value that associated with input key
+ * This method is used for point query
+ * @return : true means key exists
+ */
+INDEX_TEMPLATE_ARGUMENTS
+bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) {
+
+  page_id_t leaf_page_id;
+  auto page = GetLeafPageOfKey(key, &leaf_page_id);
+  if (page == nullptr) {
+    // the key doesn't exist
+    return false;
+  }
+  auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+  ValueType value;
+  leaf_page->Lookup(key, &value, comparator_);
+  result->push_back(value);
+  buffer_pool_manager_->UnpinPage(leaf_page_id, false);
+  return true;
 }
 
 /*****************************************************************************
@@ -178,6 +204,8 @@ N *BPLUSTREE_TYPE::Split(N *node) {
     new_page->Init(page_id, node->GetParentPageId(), leaf_max_size_);
     auto old_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(node);
     old_node->MoveHalfTo(new_page);
+    // modify the sibling pointer
+    new_page->SetNextPageId(old_node->GetNextPageId());
     old_node->SetNextPageId(page_id);
 
   } else {
@@ -258,7 +286,46 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+  if (root_page_id_ == INVALID_PAGE_ID) {
+    // empty tree
+    return;
+  }
+  auto root_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData());
+
+  if (root_page->IsLeafPage()) {
+    // the root is a leaf
+    // just traverse this leaf page and find whether this key exists
+    auto root_leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(root_page);
+    root_leaf_page->RemoveAndDeleteRecord(key, comparator_);
+
+  } else {
+    // we need to traverse down to find the right leaf
+    page_id_t leaf_page_id;
+    auto page = GetLeafPageOfKey(key, &leaf_page_id);
+    if (page == nullptr) {
+      // the key doesn't exist
+      return;
+    }
+    auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+    // delete the key from this leaf
+    int leaf_size = leaf_page->RemoveAndDeleteRecord(key, comparator_);
+
+    if (leaf_size < leaf_page->GetMinSize()) {
+      // we need to merge or redistribute the leaf  
+      if (CoalesceOrRedistribute(leaf_page, transaction)) {
+        // the leaf is merged with its sibling page
+        // then we should check whether their parent should merge
+        // TODO(greenhandzpx)
+      }
+    }
+
+    buffer_pool_manager_->UnpinPage(leaf_page_id, true);
+
+  }
+
+  buffer_pool_manager_->UnpinPage(root_page_id_, true);
+}
 
 /*
  * User needs to first find the sibling of input page. If sibling's size + input
@@ -270,7 +337,79 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
-  return false;
+
+  page_id_t parent_page_id = node->GetParentPageId();
+  if (parent_page_id == INVALID_PAGE_ID) {
+    // this page is root page
+    return false;
+  }
+
+  auto parent_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>
+    (buffer_pool_manager_->FetchPage(parent_page_id)->GetData());
+
+  page_id_t left_page_id = INVALID_PAGE_ID;
+  page_id_t right_page_id = INVALID_PAGE_ID;
+  BPlusTreePage *left_page = nullptr;
+  BPlusTreePage *right_page = nullptr;
+
+  // 1) check wether we can steal one kv from sibling
+  int index = parent_page->ValueAt(node->GetPageId());
+  if (index > 0) {
+    // check its left sibling page
+    left_page_id = parent_page->ValueAt(index-1);
+    left_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(left_page_id));
+    if (left_page->GetSize() > left_page->GetMinSize()) {
+      // the left sibling page can give a kv to the node
+      auto left_n_page = reinterpret_cast<N*>(left_page);
+      // modify the parent's key to the one that the sibling will give(the last one)
+      parent_page->SetKeyAt(index, left_n_page->KeyAt(left_n_page->GetSize()-1));
+      Redistribute(left_n_page, node, 1);
+
+      buffer_pool_manager_->UnpinPage(parent_page_id, false);
+      buffer_pool_manager_->UnpinPage(left_page_id, true);
+      return false;
+    }
+  } 
+
+  if (index < parent_page->GetSize()-1) {
+    // check its right sibling page
+    right_page_id = parent_page->ValueAt(index+1);
+    right_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(right_page_id));
+    if (right_page->GetSize() > right_page->GetMinSize()) {
+      // the right sibling page can give a kv to the node
+      auto right_n_page = reinterpret_cast<N*>(right_page);
+      // modify the parent's key to the one after the sibling will give(the second one)
+      // TODO(greenhandzpx) not sure
+      if (node->IsLeafPage()) {
+        parent_page->SetKeyAt(index+1, right_n_page->KeyAt(1));
+      } else {
+        parent_page->SetKeyAt(index+1, right_n_page->KeyAt(2));
+      }
+      Redistribute(right_n_page, node, 0);
+
+      buffer_pool_manager_->UnpinPage(parent_page_id, false);
+      buffer_pool_manager_->UnpinPage(right_page_id, true);
+      return false;
+    }
+  }
+
+  // 2) or we can only coalesce the page with its left sibling page(if any)
+
+  if (left_page_id != INVALID_PAGE_ID) {
+    // merge left sibling
+    auto left_n_page = reinterpret_cast<N*>(left_page);
+    bool res = Coalesce(&left_n_page, &node, &parent_page, index);
+    buffer_pool_manager_->UnpinPage(left_page_id, true);
+    buffer_pool_manager_->UnpinPage(parent_page_id, true);
+    return res; 
+  }
+
+  // or merge right sibling
+  auto right_n_page = reinterpret_cast<N*>(right_page);
+  bool res = Coalesce(&right_n_page, &node, &parent_page, index);
+  buffer_pool_manager_->UnpinPage(right_page_id, true);
+  buffer_pool_manager_->UnpinPage(parent_page_id, true);
+  return res;
 }
 
 /*
@@ -289,7 +428,37 @@ INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
                               BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent, int index,
-                              Transaction *transaction) {
+                              Transaction *transaction) 
+{
+  if ((*node)->IsLeafPage()) {
+
+    auto neighbor_leaf_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(*neighbor_node);
+    auto leaf_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(*node);
+    leaf_node->MoveAllTo(neighbor_leaf_node);
+
+  } else {
+
+    auto neighbor_intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(*neighbor_node);
+    auto intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(*node);
+    if (index == 0) {
+      intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(1), buffer_pool_manager_);
+    } else {
+      // If the node has left sibling, it should merge to left one first.
+      intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(index), buffer_pool_manager_);
+    }
+  }
+
+  buffer_pool_manager_->DeletePage((*node)->GetPageId());
+  if (index == 0) {
+    (*parent)->Remove(1);
+  } else {
+    (*parent)->Remove(index);
+  }
+
+  if ((*parent)->GetSize() < (*parent)->GetMinSize()) {
+    return CoalesceOrRedistribute(*parent, transaction);
+  }
+  
   return false;
 }
 
@@ -304,7 +473,37 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
  */
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
-void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
+void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
+
+  if (node->IsLeafPage()) {
+
+    auto neighbor_leaf_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(neighbor_node);
+    auto leaf_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(node);
+    if (index == 0) {
+      // the sibling page is right
+      neighbor_leaf_node->MoveFirstToEndOf(leaf_node);
+    } else {
+      // the sibling page is left
+      neighbor_leaf_node->MoveLastToFrontOf(leaf_node);
+    }
+
+  } else {
+
+    auto neighbor_intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(neighbor_node);
+    auto intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(node);
+    if (index == 0) {
+      // the sibling page is right
+      neighbor_intern_node->MoveFirstToEndOf(intern_node, neighbor_intern_node->KeyAt(1),
+        buffer_pool_manager_);
+      
+    } else {
+      // the sibling page is left
+      neighbor_intern_node->MoveLastToFrontOf(intern_node, intern_node->KeyAt(1),
+        buffer_pool_manager_);
+    }
+  }
+
+}
 /*
  * Update root page if necessary
  * NOTE: size of root page can be less than min size and this method is only

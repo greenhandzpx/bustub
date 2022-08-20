@@ -176,10 +176,22 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
  * First look through leaf page to see whether delete key exist or not. If
  * exist, perform deletion, otherwise return immediately.
  * NOTE: store key&value pair continuously after deletion
- * @return   page size after deletion
+ * @return   page size after deletion (-1 if not exists)
  */
 INDEX_TEMPLATE_ARGUMENTS
-int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) { return 0; }
+int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) {
+
+  for (int i = 0; i < GetSize(); ++i) {
+    if (comparator(array_[i].first, key) == 0) {
+      for (int k = i; k < GetSize()-1; ++k) {
+        array_[k] = array_[k+1];
+      }
+      SetSize(GetSize() - 1);
+      break;
+    }
+  }
+  return GetSize();
+}
 
 /*****************************************************************************
  * MERGE
@@ -189,7 +201,24 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
  * to update the next_page id in the sibling page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
+
+  if (GetNextPageId() == recipient->GetPageId()) {
+    // the recipent is at the right side of me
+    for (int i = 0; i < GetSize(); ++i) {
+      recipient->CopyFirstFrom(array_[i]);
+    }
+    // Only when we are at the leftmost side will we move all to right sibling,
+    // so we shouldn't worry about the sibling pointer.
+  } else {
+    // the recipent is at the left side of me
+    for (int i = 0; i < GetSize(); ++i) {
+      recipient->CopyLastFrom(array_[i]);
+    }
+    // modify the sibling pointer
+    recipient->SetNextPageId(GetNextPageId());
+  }
+}
 
 /*****************************************************************************
  * REDISTRIBUTE
@@ -198,7 +227,10 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {}
  * Remove the first key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {
+
+  
+}
 
 /*
  * Copy the item into the end of my item list. (Append item to my array)
