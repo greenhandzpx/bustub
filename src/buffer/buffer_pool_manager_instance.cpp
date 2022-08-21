@@ -204,7 +204,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   frame_id_t frame_id = page_table_[page_id];
   Page *page = &pages_[frame_id];
   if (page->GetPinCount() != 0) {
-    LOG_DEBUG("pin cnt:%u", page->GetPinCount());
+    LOG_DEBUG("delete fail, pin cnt:%u, page id:%u", page->GetPinCount(), page_id);
     return false;
   }
   DeallocatePage(page_id);
