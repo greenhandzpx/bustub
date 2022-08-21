@@ -81,7 +81,7 @@ class BPlusTree {
 
  private:
 
-  bool GetLeafPageOfKey(const KeyType &key, BPlusTreePage **leaf_page);
+  bool GetLeafPageOfKey(const KeyType &key, Page **page, bool leftMost);
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
