@@ -42,7 +42,7 @@ bool BPLUSTREE_TYPE::IsEmpty() const { return true; }
  * Helper function to get the leaf page of the given key
  */
 INDEX_TEMPLATE_ARGUMENTS
-BPlusTreePage *BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, page_id_t *page_id) {
+bool BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, BPlusTreePage **leaf_node) {
   // fetch the root page and then search the root page
   page_id_t next_page_id = root_page_id_;
 
@@ -53,22 +53,20 @@ BPlusTreePage *BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, page_id_t *p
     if (b_plus_tree_page->IsLeafPage()) {
       // we finally get the leaf page
       auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
-
+      *leaf_node = reinterpret_cast<BPlusTreePage*>(leaf_page);
       ValueType value;
       bool exists = leaf_page->Lookup(key, &value, comparator_);
       if (exists) {
-        *page_id = next_page_id;
-        return b_plus_tree_page;
+        return true;
       }
       std::cout << "[DEBUG] key " << key << " doesn't exist in leaf page " << next_page_id << std::endl;
-      buffer_pool_manager_->UnpinPage(next_page_id, false);
-      return nullptr;
+      return false;
     }
     auto intern_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(page->GetData());
     buffer_pool_manager_->UnpinPage(next_page_id, false);
     next_page_id = intern_page->Lookup(key, comparator_);
   }
-  return nullptr;
+  return false;
 }
 
 
@@ -86,18 +84,18 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
 
   // ToString(reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData()), buffer_pool_manager_);
 
-  page_id_t leaf_page_id;
-  auto page = GetLeafPageOfKey(key, &leaf_page_id);
-  if (page == nullptr) {
+  BPlusTreePage *page = nullptr;
+  if (!GetLeafPageOfKey(key, &page)) {
     // the key doesn't exist
     std::cout << "[DEBUG] key " << key << " doesn't exist.\n";
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
     return false;
   }
   auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
   ValueType value;
   leaf_page->Lookup(key, &value, comparator_);
   result->push_back(value);
-  buffer_pool_manager_->UnpinPage(leaf_page_id, false);
+  buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
   return true;
 }
 
@@ -154,38 +152,28 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
-  page_id_t next_page_id = root_page_id_;
 
-  while (next_page_id != INVALID_PAGE_ID) {
-    auto page = buffer_pool_manager_->FetchPage(next_page_id);
-    // TODO(greenhandzpx) not sure
-    auto b_plus_tree_page = reinterpret_cast<BPlusTreePage*>(page->GetData());
-    if (b_plus_tree_page->IsLeafPage()) {
-      // we finally get the leaf page
-      auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
-
-      int leaf_size = leaf_page->Insert(key, value, comparator_);
-      if (leaf_size == -1) {
-        // the key has already existed
-        buffer_pool_manager_->UnpinPage(next_page_id, false);
-        return false;
-      }
-
-      std::cout << "[DEBUG] insert key " << key << " value " << value << std::endl;
-      if (leaf_size == leaf_max_size_) {
-        // the leaf is full
-        std::cout << "[DEBUG] split a node " << std::endl;
-        auto new_page = Split(leaf_page);
-        // fetch the middle key of the leaf page and put it into the parent page
-        InsertIntoParent(leaf_page, new_page->KeyAt(0), new_page);
-      }
-      return true;
-    }
-    auto intern_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(page->GetData());
-    buffer_pool_manager_->UnpinPage(next_page_id, false);
-    next_page_id = intern_page->Lookup(key, comparator_);
+  BPlusTreePage *b_plus_tree_page = nullptr;
+  if (GetLeafPageOfKey(key, &b_plus_tree_page)) {
+    // the key has already existed
+    buffer_pool_manager_->UnpinPage(b_plus_tree_page->GetPageId(), false);
+    return false;
   }
-  return false;
+
+  auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(b_plus_tree_page);
+  int leaf_size = leaf_page->Insert(key, value, comparator_);
+  assert(leaf_size  != -1);
+  std::cout << "[DEBUG] insert key " << key << " value " << value << std::endl;
+  if (leaf_size == leaf_max_size_) {
+    // the leaf is full
+    std::cout << "[DEBUG] split a node " << std::endl;
+    auto new_page = Split(leaf_page);
+    // fetch the middle key of the leaf page and put it into the parent page
+    InsertIntoParent(leaf_page, new_page->KeyAt(0), new_page);
+  }
+
+  return true;
+
 }
 /*
  * Split input page and return newly created page.
@@ -258,6 +246,8 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     new_node->SetParentPageId(new_page_id);
 
     buffer_pool_manager_->UnpinPage(new_page_id, true);
+    buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
 
   } else {
     // non-root page
@@ -268,13 +258,14 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     new_node->SetParentPageId(parent_page_id);
 
     if (parent_size == internal_max_size_ + 1) {
-      // the parent is full
+      // for internal page, only when the size = max + 1(because the first key is invalid), will it split
       auto new_parent_page = Split(parent_page);
       // fetch the middle key of the leaf page and put it into the parent page
       InsertIntoParent(parent_page, new_parent_page->KeyAt(0), new_parent_page);
-      buffer_pool_manager_->UnpinPage(new_parent_page->GetPageId(), true);
     }
-    buffer_pool_manager_->UnpinPage(parent_page_id, true);
+
+    buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
   }
 
 
@@ -303,34 +294,35 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     // just traverse this leaf page and find whether this key exists
     auto root_leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(root_page);
     root_leaf_page->RemoveAndDeleteRecord(key, comparator_);
-
-  } else {
-    // we need to traverse down to find the right leaf
-    page_id_t leaf_page_id;
-    auto page = GetLeafPageOfKey(key, &leaf_page_id);
-    if (page == nullptr) {
-      // the key doesn't exist
-      return;
-    }
-    auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
-    // delete the key from this leaf
-    int leaf_size = leaf_page->RemoveAndDeleteRecord(key, comparator_);
-
-    if (leaf_size < leaf_page->GetMinSize()) {
-      // we need to merge or redistribute the leaf  
-      if (CoalesceOrRedistribute(leaf_page, transaction)) {
-        // the leaf is merged with its sibling page
-        // then we should check whether their parent should merge
-        // TODO(greenhandzpx)
-      } 
-    } else {
-      buffer_pool_manager_->UnpinPage(leaf_page_id, true);
-    }
-
-
+    AdjustRoot(root_page);
+    return;
   }
 
-  buffer_pool_manager_->UnpinPage(root_page_id_, true);
+  buffer_pool_manager_->UnpinPage(root_page_id_, false);
+
+  // we need to traverse down to find the right leaf
+  BPlusTreePage *page;
+  if (!GetLeafPageOfKey(key, &page)) {
+    // the key doesn't exist
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
+    return;
+  }
+
+  auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
+  // delete the key from this leaf
+  int leaf_size = leaf_page->RemoveAndDeleteRecord(key, comparator_);
+
+  if (leaf_size < leaf_page->GetMinSize()) {
+    // we need to merge or redistribute the leaf  
+    if (CoalesceOrRedistribute(leaf_page, transaction)) {
+      // the leaf is merged with its sibling page
+      // then we should check whether their parent should merge
+      // TODO(greenhandzpx)
+    } 
+  } else {
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
+  }
+
 }
 
 /*

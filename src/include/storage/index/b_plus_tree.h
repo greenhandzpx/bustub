@@ -81,7 +81,7 @@ class BPlusTree {
 
  private:
 
-  BPlusTreePage *GetLeafPageOfKey(const KeyType &key, page_id_t *page_id);
+  bool GetLeafPageOfKey(const KeyType &key, BPlusTreePage **leaf_page);
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
