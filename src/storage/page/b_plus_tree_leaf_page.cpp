@@ -115,7 +115,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
   array_[old_size].first = key;
   array_[old_size].second = value;
   std::cout << "[DEBUG] insert a key " << key << " value " << value << " into index " << old_size 
-    << std::endl;
+    << " leaf page id " << GetPageId() << std::endl;
   SetSize(old_size + 1);
   return GetSize();
 }
@@ -203,21 +203,27 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
 
-  if (GetNextPageId() == recipient->GetPageId()) {
-    // the recipent is at the right side of me
-    for (int i = 0; i < GetSize(); ++i) {
-      recipient->CopyFirstFrom(array_[i]);
-    }
-    // Only when we are at the leftmost side will we move all to right sibling,
-    // so we shouldn't worry about the sibling pointer.
-  } else {
-    // the recipent is at the left side of me
-    for (int i = 0; i < GetSize(); ++i) {
-      recipient->CopyLastFrom(array_[i]);
-    }
-    // modify the sibling pointer
-    recipient->SetNextPageId(GetNextPageId());
+  // if (GetNextPageId() == recipient->GetPageId()) {
+  //   // the recipent is at the right side of me
+  //   for (int i = 0; i < GetSize(); ++i) {
+  //     // TODO(greenhandzpx) this way is inefficient, should be optimized
+  //     recipient->CopyFirstFrom(array_[i]);
+  //   }
+  //   // Only when we are at the leftmost side will we move all to right sibling,
+  //   // so we shouldn't worry about the sibling pointer.
+  // } else {
+  //   // the recipent is at the left side of me
+  //   for (int i = 0; i < GetSize(); ++i) {
+  //     recipient->CopyLastFrom(array_[i]);
+  //   }
+  //   // modify the sibling pointer
+  //   recipient->SetNextPageId(GetNextPageId());
+  // }
+  for (int i = 0; i < GetSize(); ++i) {
+    recipient->CopyLastFrom(array_[i]);
   }
+  // modify the sibling pointer
+  recipient->SetNextPageId(GetNextPageId());
 }
 
 /*****************************************************************************
@@ -228,27 +234,39 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {
-
-  
+  recipient->CopyLastFrom(array_[0]);
+  SetSize(GetSize() - 1);
 }
 
 /*
  * Copy the item into the end of my item list. (Append item to my array)
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
+  array_[GetSize()] = item;
+  SetSize(GetSize() + 1);
+}
 
 /*
  * Remove the last key & value pair from this page to "recipient" page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeLeafPage *recipient) {
+  recipient->CopyFirstFrom(array_[GetSize() - 1]);
+  SetSize(GetSize() - 1);
+}
 
 /*
  * Insert item at the front of my items. Move items accordingly.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(const MappingType &item) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(const MappingType &item) {
+  for (int i = GetSize(); i > 0; --i) {
+    array_[i] = array_[i-1];
+  } 
+  array_[0] = item;
+  SetSize(GetSize() + 1);
+}
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;

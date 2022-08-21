@@ -107,12 +107,12 @@ class BPlusTree {
 
   void UpdateRootPageId(int insert_record = 0);
 
-
+ public:
   /* Debug Routines for FREE!! */
   void ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const;
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
-
+ private:
   // member variable
   std::string index_name_;
   page_id_t root_page_id_;

@@ -88,6 +88,7 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
  */
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyComparator &comparator) const {
+
   if (comparator(array_[1].first, key) > 0) {
     // the key is smaller than the first bound key
     return array_[0].second;
@@ -133,13 +134,13 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(const ValueType &old_value, 
                                                     const ValueType &new_value) 
 {
   int old_size = GetSize();
-  if (old_size == GetMaxSize()) {
+  if (old_size == GetMaxSize() + 1) {
     return -1;
   }                                                      
 
   int index = ValueIndex(old_value);
-  for (int i = index+1; i < old_size; ++i) {
-    array_[i+1] = array_[i];
+  for (int i = old_size; i > index + 1; --i) {
+    array_[i] = array_[i-1];
   }
   array_[index+1] = {new_key, new_value};
 
@@ -175,6 +176,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
   for (int i = 0; i < size; ++i) {
+    // note that array_[0].first should be regarded as invalid key(although it isn't)
     array_[i] = items[i];
     auto child_page = reinterpret_cast<BPlusTreePage*>(
       buffer_pool_manager->FetchPage(items[i].second)->GetData());
@@ -195,8 +197,10 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyNFrom(MappingType *items, int size, Buf
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
-
-
+  for (int i = index; i < GetSize() - 1; ++i) {
+    array_[i] = array_[i+1];
+  }
+  SetSize(GetSize() - 1);
 }
 
 /*
@@ -217,7 +221,15 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() { return IN
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
-                                               BufferPoolManager *buffer_pool_manager) {}
+                                               BufferPoolManager *buffer_pool_manager) 
+{
+  for (int i = 0; i < GetSize(); ++i) {
+    if (i == 0) {
+      array_[0].first = middle_key;
+    }
+    recipient->CopyLastFrom(array_[i], buffer_pool_manager);
+  }
+}
 
 /*****************************************************************************
  * REDISTRIBUTE
@@ -234,7 +246,11 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
                                                       BufferPoolManager *buffer_pool_manager) 
 {
-
+  recipient->CopyLastFrom(array_[0], buffer_pool_manager);
+  for (int i = 0; i < GetSize() - 1; ++i) {
+    array_[i] = array_[i+1];
+  }
+  SetSize(GetSize() - 1);
 }
 
 /* Append an entry at the end.
@@ -242,7 +258,14 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
  * So I need to 'adopt' it by changing its parent page id, which needs to be persisted with BufferPoolManger
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager) {
+
+  auto child_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager->FetchPage(pair.second)->GetData());
+  child_page->SetParentPageId(GetPageId());
+  buffer_pool_manager->UnpinPage(pair.second, true);
+  array_[GetSize()] = pair;
+  SetSize(GetSize() + 1);
+}
 
 /*
  * Remove the last key & value pair from this page to head of "recipient" page.
@@ -253,14 +276,28 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(const MappingType &pair, Buffe
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
-                                                       BufferPoolManager *buffer_pool_manager) {}
+                                                       BufferPoolManager *buffer_pool_manager) 
+{
+  recipient->CopyFirstFrom(array_[GetSize()-1], buffer_pool_manager);
+  SetSize(GetSize() - 1);
+}
 
 /* Append an entry at the beginning.
  * Since it is an internal page, the moved entry(page)'s parent needs to be updated.
  * So I need to 'adopt' it by changing its parent page id, which needs to be persisted with BufferPoolManger
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager) {
+
+  auto child_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager->FetchPage(pair.second)->GetData());
+  child_page->SetParentPageId(GetPageId());
+  buffer_pool_manager->UnpinPage(pair.second, true);
+  for (int i = GetSize(); i > 0; --i) {
+    array_[i] = array_[i-1];
+  }
+  array_[0] = pair;
+  SetSize(GetSize() + 1);
+}
 
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;

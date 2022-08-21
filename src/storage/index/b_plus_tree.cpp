@@ -60,7 +60,7 @@ BPlusTreePage *BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, page_id_t *p
         *page_id = next_page_id;
         return b_plus_tree_page;
       }
-
+      std::cout << "[DEBUG] key " << key << " doesn't exist in leaf page " << next_page_id << std::endl;
       buffer_pool_manager_->UnpinPage(next_page_id, false);
       return nullptr;
     }
@@ -83,10 +83,14 @@ BPlusTreePage *BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, page_id_t *p
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) {
 
+
+  // ToString(reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData()), buffer_pool_manager_);
+
   page_id_t leaf_page_id;
   auto page = GetLeafPageOfKey(key, &leaf_page_id);
   if (page == nullptr) {
     // the key doesn't exist
+    std::cout << "[DEBUG] key " << key << " doesn't exist.\n";
     return false;
   }
   auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page);
@@ -240,6 +244,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     page_id_t new_page_id;
     auto page = buffer_pool_manager_->NewPage(&new_page_id);
     if (page == nullptr) {
+      std::cout << "[ERROR] buffer pool out of memory\n";
       throw Exception(ExceptionType::OUT_OF_MEMORY, "buffer pool out of memory");
     }
     auto new_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(page);
@@ -262,11 +267,11 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
 
     new_node->SetParentPageId(parent_page_id);
 
-    if (parent_size == internal_max_size_) {
+    if (parent_size == internal_max_size_ + 1) {
       // the parent is full
       auto new_parent_page = Split(parent_page);
       // fetch the middle key of the leaf page and put it into the parent page
-      InsertIntoParent(parent_page, parent_page->KeyAt(parent_size/2), new_parent_page);
+      InsertIntoParent(parent_page, new_parent_page->KeyAt(0), new_parent_page);
       buffer_pool_manager_->UnpinPage(new_parent_page->GetPageId(), true);
     }
     buffer_pool_manager_->UnpinPage(parent_page_id, true);
@@ -361,6 +366,12 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     if (left_page->GetSize() > left_page->GetMinSize()) {
       // the left sibling page can give a kv to the node
       auto left_n_page = reinterpret_cast<N*>(left_page);
+      if (!node->IsLeafPage()) {
+        auto intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>
+          (node);
+        // we first let the array_[0].first equal to parent seperate key
+        intern_node->SetKeyAt(0, parent_page->KeyAt(index));
+      }
       // modify the parent's key to the one that the sibling will give(the last one)
       parent_page->SetKeyAt(index, left_n_page->KeyAt(left_n_page->GetSize()-1));
       Redistribute(left_n_page, node, 1);
@@ -378,13 +389,14 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
     if (right_page->GetSize() > right_page->GetMinSize()) {
       // the right sibling page can give a kv to the node
       auto right_n_page = reinterpret_cast<N*>(right_page);
-      // modify the parent's key to the one after the sibling will give(the second one)
-      // TODO(greenhandzpx) not sure
-      if (node->IsLeafPage()) {
-        parent_page->SetKeyAt(index+1, right_n_page->KeyAt(1));
-      } else {
-        parent_page->SetKeyAt(index+1, right_n_page->KeyAt(2));
+      if (!node->IsLeafPage()) {
+        auto right_intern_page = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>
+          (right_n_page);
+        // we first let the array_[0].first equal to parent seperate key
+        right_intern_page->SetKeyAt(0, parent_page->KeyAt(index+1));
       }
+      // modify the parent's key to the one after the sibling will give(the second one)
+      parent_page->SetKeyAt(index+1, right_n_page->KeyAt(1));
       Redistribute(right_n_page, node, 0);
 
       buffer_pool_manager_->UnpinPage(parent_page_id, false);
@@ -406,7 +418,8 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
 
   // or merge right sibling
   auto right_n_page = reinterpret_cast<N*>(right_page);
-  bool res = Coalesce(&right_n_page, &node, &parent_page, index);
+  // let the right sibling merge to this node
+  bool res = Coalesce(&node, &right_n_page, &parent_page, index+1);
   buffer_pool_manager_->UnpinPage(right_page_id, true);
   buffer_pool_manager_->UnpinPage(parent_page_id, true);
   return res;
@@ -440,12 +453,14 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
 
     auto neighbor_intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(*neighbor_node);
     auto intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(*node);
-    if (index == 0) {
-      intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(1), buffer_pool_manager_);
-    } else {
-      // If the node has left sibling, it should merge to left one first.
-      intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(index), buffer_pool_manager_);
-    }
+    // if (index == 0) {
+    //   // If the node is at the leftmost, then let its right sibling merge to it
+    //   neighbor_intern_node->MoveAllTo(intern_node, (*parent)->KeyAt(1), buffer_pool_manager_);
+    // } else {
+    //   // If the node has left sibling, it should merge to left one first.
+    //   intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(index), buffer_pool_manager_);
+    // }
+    intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(index), buffer_pool_manager_);
   }
 
   buffer_pool_manager_->DeletePage((*node)->GetPageId());
@@ -493,12 +508,12 @@ void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
     auto intern_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>*>(node);
     if (index == 0) {
       // the sibling page is right
-      neighbor_intern_node->MoveFirstToEndOf(intern_node, neighbor_intern_node->KeyAt(1),
+      neighbor_intern_node->MoveFirstToEndOf(intern_node, neighbor_intern_node->KeyAt(0),
         buffer_pool_manager_);
       
     } else {
       // the sibling page is left
-      neighbor_intern_node->MoveLastToFrontOf(intern_node, intern_node->KeyAt(1),
+      neighbor_intern_node->MoveLastToFrontOf(intern_node, intern_node->KeyAt(0),
         buffer_pool_manager_);
     }
   }
