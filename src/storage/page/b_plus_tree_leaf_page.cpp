@@ -112,9 +112,23 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
       return -1;
     }
   }
-  array_[old_size].first = key;
-  array_[old_size].second = value;
-  std::cout << "[DEBUG] insert a key " << key << " value " << value << " into index " << old_size 
+  if (comparator(key, array_[old_size-1].first) > 0) {
+    array_[old_size].first = key;
+    array_[old_size].second = value;
+
+  } else {
+    for (int i = 0; i < old_size; ++i) {
+      if (comparator(key, array_[i].first) < 0) {
+        for (int k = old_size; k > i; --k) {
+          array_[k] = array_[k-1];
+        }
+        array_[i].first = key;
+        array_[i].second = value;
+        break;
+      }
+    }
+  }
+  std::cout << "[DEBUG] insert a key " << key << " value " << value
     << " leaf page id " << GetPageId() << std::endl;
   SetSize(old_size + 1);
   return GetSize();
