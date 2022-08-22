@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <mutex>
 #include <queue>
 #include <string>
 #include <vector>
@@ -81,7 +82,17 @@ class BPlusTree {
 
  private:
 
-  bool GetLeafPageOfKey(const KeyType &key, Page **page, bool leftMost);
+  enum OperationType {
+    SearchKey,
+    InsertKey,
+    DeleteKey, 
+  };
+
+  void UnLcokAndUnpinLastPage(Transaction *transaction, OperationType type);
+
+  void UnLockAndUnpinPages(Transaction *transaction, OperationType type);
+
+  bool GetLeafPageOfKey(const KeyType &key, Page **page, bool leftMost, OperationType type, Transaction *transaction);
 
   void StartNewTree(const KeyType &key, const ValueType &value);
 
@@ -103,7 +114,7 @@ class BPlusTree {
   template <typename N>
   void Redistribute(N *neighbor_node, N *node, int index);
 
-  bool AdjustRoot(BPlusTreePage *node);
+  bool AdjustRoot(BPlusTreePage *node, Transaction *transaction);
 
   void UpdateRootPageId(int insert_record = 0);
 
@@ -116,6 +127,7 @@ class BPlusTree {
   // member variable
   std::string index_name_;
   page_id_t root_page_id_;
+  std::mutex root_page_mutex_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
   int leaf_max_size_;
