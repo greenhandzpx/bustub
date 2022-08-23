@@ -208,6 +208,7 @@ TEST(BPlusTreeTests, ScaleTest) {
   (void)header_page;
 
   int64_t scale = 10000;
+  // int64_t scale = 10;
   std::vector<int64_t> keys;
   for (int64_t key = 1; key < scale; key++) {
     keys.push_back(key);
@@ -234,6 +235,7 @@ TEST(BPlusTreeTests, ScaleTest) {
   }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
+
   // delete key_schema;
   delete transaction;
   delete disk_manager;

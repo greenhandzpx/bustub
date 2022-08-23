@@ -8,10 +8,10 @@
 #include <future>  // NOLINT
 #include <thread>  // NOLINT
 
-#include "b_plus_tree_test_util.h"  // NOLINT
-#include "buffer/buffer_pool_manager.h"
+#include "buffer/buffer_pool_manager_instance.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
+#include "test_util.h"  // NOLINT
 
 // Macro for time out mechanism
 #define TEST_TIMEOUT_BEGIN                           \
@@ -127,11 +127,11 @@ const size_t NUM_ITERS = 100;
 void InsertTest1Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -161,8 +161,10 @@ void InsertTest1Call() {
     int64_t start_key = 1;
     int64_t current_key = start_key;
 
-    for (auto &pair : tree) {
-      auto location = pair.second;
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+    // for (auto &pair : tree) {
+      // auto location = pair.second;
+      auto location = (*iterator).second;
       EXPECT_EQ(location.GetPageId(), 0);
       EXPECT_EQ(location.GetSlotNum(), current_key);
       current_key = current_key + 1;
@@ -171,7 +173,7 @@ void InsertTest1Call() {
     EXPECT_EQ(current_key, keys.size() + 1);
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -182,11 +184,11 @@ void InsertTest1Call() {
 void InsertTest2Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -216,8 +218,10 @@ void InsertTest2Call() {
     int64_t start_key = 1;
     int64_t current_key = start_key;
 
-    for (auto &pair : tree) {
-      auto location = pair.second;
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+      auto location = (*iterator).second;
+    // for (auto &pair : tree) {
+    //   auto location = pair.second;
       EXPECT_EQ(location.GetPageId(), 0);
       EXPECT_EQ(location.GetSlotNum(), current_key);
       current_key = current_key + 1;
@@ -226,7 +230,7 @@ void InsertTest2Call() {
     EXPECT_EQ(current_key, keys.size() + 1);
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -237,11 +241,11 @@ void InsertTest2Call() {
 void DeleteTest1Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -259,8 +263,10 @@ void DeleteTest1Call() {
     int64_t current_key = start_key;
     int64_t size = 0;
 
-    for (auto &pair : tree) {
-      auto location = pair.second;
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+      auto location = (*iterator).second;
+    // for (auto &pair : tree) {
+    //   auto location = pair.second;
       EXPECT_EQ(location.GetPageId(), 0);
       EXPECT_EQ(location.GetSlotNum(), current_key);
       current_key = current_key + 1;
@@ -270,7 +276,7 @@ void DeleteTest1Call() {
     EXPECT_EQ(size, 1);
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -281,11 +287,11 @@ void DeleteTest1Call() {
 void DeleteTest2Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -304,8 +310,10 @@ void DeleteTest2Call() {
     int64_t current_key = start_key;
     int64_t size = 0;
 
-    for (auto &pair : tree) {
-      auto location = pair.second;
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+      auto location = (*iterator).second;
+    // for (auto &pair : tree) {
+    //   auto location = pair.second;
       EXPECT_EQ(location.GetPageId(), 0);
       EXPECT_EQ(location.GetSlotNum(), current_key);
       current_key = current_key + 1;
@@ -315,7 +323,7 @@ void DeleteTest2Call() {
     EXPECT_EQ(size, 4);
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -326,11 +334,11 @@ void DeleteTest2Call() {
 void MixTest1Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
 
@@ -369,15 +377,17 @@ void MixTest1Call() {
 
     int64_t size = 0;
 
-    for (auto &pair : tree) {
-      EXPECT_EQ((pair.first).ToString(), for_insert[size]);
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+      // auto location = (*iterator).second;
+    // for (auto &pair : tree) {
+      EXPECT_EQ(((*iterator).first).ToString(), for_insert[size]);
       size++;
     }
 
     EXPECT_EQ(size, for_insert.size());
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -388,11 +398,11 @@ void MixTest1Call() {
 void MixTest2Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -437,8 +447,9 @@ void MixTest2Call() {
     // Check all reserved keys exist
     size = 0;
 
-    for (auto &pair : tree) {
-      if ((pair.first).ToString() % sieve == 0) {
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+    // for (auto &pair : tree) {
+      if (((*iterator).first).ToString() % sieve == 0) {
         size++;
       }
     }
@@ -446,7 +457,7 @@ void MixTest2Call() {
     EXPECT_EQ(size, perserved_keys.size());
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");
@@ -457,11 +468,11 @@ void MixTest2Call() {
 void MixTest3Call() {
   for (size_t iter = 0; iter < NUM_ITERS; iter++) {
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
 
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
 
@@ -499,15 +510,16 @@ void MixTest3Call() {
 
     int64_t size = 0;
 
-    for (auto &pair : tree) {
-      EXPECT_EQ((pair.first).ToString(), for_insert[size]);
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+    // for (auto &pair : tree) {
+      EXPECT_EQ(((*iterator).first).ToString(), for_insert[size]);
       size++;
     }
 
     EXPECT_EQ(size, for_insert.size());
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");

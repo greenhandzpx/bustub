@@ -250,8 +250,12 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
     replacer_->Unpin(frame_id);
   }
 
-  // if (page_id == 6) {
-  //   LOG_DEBUG("pin cnt:%u", page->GetPinCount());
+  // LOG_DEBUG("page id %u, pin cnt:%u", page->GetPageId(), page->GetPinCount());
+  // // if (page_id == 6) {
+  // //   LOG_DEBUG("pin cnt:%u", page->GetPinCount());
+  // // }
+  // for (size_t i = 0; i < pool_size_; ++i) {
+  //   LOG_DEBUG("page id %u, pin cnt %u", pages_[i].GetPageId(), pages_[i].GetPinCount());
   // }
   return true;
 }

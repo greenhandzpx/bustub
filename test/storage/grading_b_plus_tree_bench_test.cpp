@@ -9,10 +9,10 @@
 #include <iostream>
 #include <thread>  // NOLINT
 
-#include "b_plus_tree_test_util.h"  // NOLINT
-#include "buffer/buffer_pool_manager.h"
+#include "buffer/buffer_pool_manager_instance.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
+#include "test_util.h"
 
 // Macro for time out mechanism
 #define TEST_TIMEOUT_BEGIN                           \

@@ -249,6 +249,9 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) {
   recipient->CopyLastFrom(array_[0]);
+  for (int i = 0; i < GetSize() - 1; ++i) {
+    array_[i] = array_[i+1];
+  }
   SetSize(GetSize() - 1);
 }
 
@@ -257,6 +260,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) 
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
+  std::cout << "[DEBUG] copy last from key " << item.first << std::endl;
   array_[GetSize()] = item;
   SetSize(GetSize() + 1);
 }
