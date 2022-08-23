@@ -121,8 +121,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(const ValueType &old_value,
   SetSize(2);
   array_[0].second = old_value;
   array_[1] = {new_key, new_value};
-  std::cout << "[DEBUG] populate a new root(page id " << GetPageId() << ") "<< "v0 " << old_value << " k1 " << new_key 
-    << " v1 " << new_value << std::endl;
+  // std::cout << "[DEBUG] populate a new root(page id " << GetPageId() << ") "<< "v0 " << old_value << " k1 " << new_key 
+  //   << " v1 " << new_value << std::endl;
 }
 /*
  * Insert new_key & new_value pair right after the pair with its value ==

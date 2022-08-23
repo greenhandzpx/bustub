@@ -74,7 +74,7 @@ KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
     std::cout << "[ERROR] index " << index << " out of range, size " << GetSize() << "\n";
     return KeyType{};
   }
-  std::cout << "[DEBUG] key " << array_[index].first << " at index " << index << std::endl;
+  // std::cout << "[DEBUG] key " << array_[index].first << " at index " << index << std::endl;
   return array_[index].first;
 }
 
@@ -128,8 +128,8 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
       }
     }
   }
-  std::cout << "[DEBUG] insert a key " << key << " value " << value
-    << " leaf page id " << GetPageId() << std::endl;
+  // std::cout << "[DEBUG] insert a key " << key << " value " << value
+  //   << " leaf page id " << GetPageId() << std::endl;
   SetSize(old_size + 1);
   return GetSize();
 }
@@ -260,7 +260,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeLeafPage *recipient) 
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
-  std::cout << "[DEBUG] copy last from key " << item.first << std::endl;
+  // std::cout << "[DEBUG] copy last from key " << item.first << std::endl;
   array_[GetSize()] = item;
   SetSize(GetSize() + 1);
 }

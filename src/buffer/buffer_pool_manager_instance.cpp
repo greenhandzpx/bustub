@@ -225,14 +225,14 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   std::lock_guard<std::mutex> guard(latch_);
   if (page_table_.find(page_id) == page_table_.end()) {
-    LOG_DEBUG("unpin fail1.");
+    LOG_DEBUG("unpin fail1. page id %u", page_id);
     return false;
   }
 
   frame_id_t frame_id = page_table_[page_id];
   Page *page = &pages_[frame_id];
   if (page->GetPinCount() <= 0) {
-    LOG_DEBUG("Unpin fail2. PinCount:%d", page->GetPinCount());
+    LOG_DEBUG("Unpin fail2. PinCount:%d, page id %u", page->GetPinCount(), page_id);
     return false;
   }
   // if (page_id < 3) {
@@ -257,6 +257,7 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   // for (size_t i = 0; i < pool_size_; ++i) {
   //   LOG_DEBUG("page id %u, pin cnt %u", pages_[i].GetPageId(), pages_[i].GetPinCount());
   // }
+  // std::cout << "\n";
   return true;
 }
 
