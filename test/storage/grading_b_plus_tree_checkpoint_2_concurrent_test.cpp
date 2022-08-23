@@ -368,6 +368,7 @@ void MixTest1Call() {
     tasks.emplace_back(delete_task);
     std::vector<std::thread> threads;
     size_t num_threads = 10;
+    // size_t num_threads = 1;
     for (size_t i = 0; i < num_threads; i++) {
       threads.emplace_back(std::thread{tasks[i % tasks.size()], i});
     }
@@ -413,7 +414,8 @@ void MixTest2Call() {
     // Add perserved_keys
     std::vector<int64_t> perserved_keys;
     std::vector<int64_t> dynamic_keys;
-    size_t total_keys = 3000;
+    size_t total_keys = 3000;  
+    // size_t total_keys = 300;
     size_t sieve = 5;
     for (size_t i = 1; i <= total_keys; i++) {
       if (i % sieve == 0) {
@@ -443,7 +445,18 @@ void MixTest2Call() {
     for (size_t i = 0; i < num_threads; i++) {
       threads[i].join();
     }
-
+    // for (size_t i = 0; i < num_threads/2; i++) {
+    //   threads.emplace_back(std::thread{tasks[0], i});
+    // }
+    // for (size_t i = 0; i < num_threads/2; i++) {
+    //   threads[i].join();
+    // }
+    // for (size_t i = num_threads/2; i < num_threads; i++) {
+    //   threads.emplace_back(std::thread{tasks[1], i});
+    // }
+    // for (size_t i = num_threads/2; i < num_threads; i++) {
+    //   threads[i].join();
+    // }
     // Check all reserved keys exist
     size = 0;
 
@@ -531,7 +544,7 @@ void MixTest3Call() {
  * Score: 5
  * Description: Concurrently insert a set of keys.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
+TEST(BPlusTreeConcurrentTest, InsertTest1) {
   TEST_TIMEOUT_BEGIN
   InsertTest1Call();
   remove("test.db");
@@ -544,7 +557,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
  * Description: Split the concurrent insert test to multiple threads
  * without overlap.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
+TEST(BPlusTreeConcurrentTest, InsertTest2) {
   TEST_TIMEOUT_BEGIN
   InsertTest2Call();
   remove("test.db");
@@ -556,7 +569,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
  * Score: 5
  * Description: Concurrently delete a set of keys.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest1) {
+TEST(BPlusTreeConcurrentTest, DeleteTest1) {
   TEST_TIMEOUT_BEGIN
   DeleteTest1Call();
   remove("test.db");
@@ -569,7 +582,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest1) {
  * Description: Split the concurrent delete task to multiple threads
  * without overlap.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_DeleteTest2) {
+TEST(BPlusTreeConcurrentTest, DeleteTest2) {
   TEST_TIMEOUT_BEGIN
   DeleteTest2Call();
   remove("test.db");
@@ -600,7 +613,7 @@ TEST(BPlusTreeConcurrentTest, MixTest1) {
  * Check all the keys get are the same set of keys as previously
  * inserted.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_MixTest2) {
+TEST(BPlusTreeConcurrentTest, MixTest2) {
   TEST_TIMEOUT_BEGIN
   MixTest2Call();
   remove("test.db");
@@ -615,7 +628,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_MixTest2) {
  * insert different set of keys. Check if all old keys are
  * deleted and new keys are added correctly.
  */
-TEST(BPlusTreeConcurrentTest, DISABLED_MixTest3) {
+TEST(BPlusTreeConcurrentTest, MixTest3) {
   TEST_TIMEOUT_BEGIN
   MixTest3Call();
   remove("test.db");

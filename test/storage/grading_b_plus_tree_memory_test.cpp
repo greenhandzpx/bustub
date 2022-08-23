@@ -9,10 +9,10 @@
 #include <iostream>
 #include <thread>  // NOLINT
 
-#include "b_plus_tree_test_util.h"  // NOLINT
-#include "buffer/buffer_pool_manager.h"
+#include "buffer/buffer_pool_manager_instance.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
+#include "test_util.h"  // NOLINT
 
 // Macro for time out mechanism
 #define TEST_TIMEOUT_BEGIN                           \
@@ -161,10 +161,10 @@ void BPlusTreeBenchmarkCall() {
     }
 
     // create KeyComparator and index schema
-    Schema *key_schema = ParseCreateStatement("a bigint");
-    GenericComparator<8> comparator(key_schema);
+    auto key_schema = ParseCreateStatement("a bigint");
+    GenericComparator<8> comparator(key_schema.get());
     DiskManager *disk_manager = new DiskManager("test.db");
-    BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+    BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
     // create b+ tree
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
     // create and fetch header_page
@@ -186,8 +186,9 @@ void BPlusTreeBenchmarkCall() {
     LookupHelper(&tree, remain_keys, txn_start_id);
     // iterate through all the keys in BPlusTree
     size_t size = 0;
-    for (auto &pair : tree) {
-      if ((pair.first).ToString() % sieve == 1) {
+    for (auto iterator = tree.Begin(); iterator != tree.End(); ++iterator) {
+    // for (auto &pair : tree) {
+      if (((*iterator).first).ToString() % sieve == 1) {
         size++;
       } else {
         success = false;
@@ -199,7 +200,7 @@ void BPlusTreeBenchmarkCall() {
     time_total += std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     bpm->UnpinPage(HEADER_PAGE_ID, true);
-    delete key_schema;
+    // delete key_schema;
     delete disk_manager;
     delete bpm;
     remove("test.db");

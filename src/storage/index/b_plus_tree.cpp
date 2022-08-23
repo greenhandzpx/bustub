@@ -93,7 +93,7 @@ void BPLUSTREE_TYPE::UnLockAndUnpinPages(Transaction *transaction, OperationType
   // delete some pages if any
   for (page_id_t page_id: *transaction->GetDeletedPageSet()) {
     assert(buffer_pool_manager_->DeletePage(page_id));
-    LOG_DEBUG("delete page id %u", page_id);
+    // LOG_DEBUG("delete page id %u", page_id);
   }
   transaction->GetDeletedPageSet()->clear();
 
@@ -132,13 +132,13 @@ bool BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, Page **page, bool left
       // LOG_DEBUG("get rlatch in page id %u", (*page)->GetPageId());
       if (last_page != nullptr) {
         // LOG_DEBUG("unrlatch in page id %u", last_page->GetPageId());
-        last_page->RUnlatch();
-        assert(buffer_pool_manager_->UnpinPage(last_page->GetPageId(), false));
         auto b_plus_tree_page = reinterpret_cast<BPlusTreePage*>(last_page->GetData());
         if (b_plus_tree_page->IsRootPage()) {
           // root page has a mutex
           root_page_mutex_.unlock();
         }
+        last_page->RUnlatch();
+        assert(buffer_pool_manager_->UnpinPage(last_page->GetPageId(), false));
       }
       last_page = *page;
       // UnLockAndUnpinPages(transaction, OperationType::SearchKey);
@@ -173,6 +173,7 @@ bool BPLUSTREE_TYPE::GetLeafPageOfKey(const KeyType &key, Page **page, bool left
 
 
     auto b_plus_tree_page = reinterpret_cast<BPlusTreePage*>((*page)->GetData());
+
     if (b_plus_tree_page->IsLeafPage()) {
       // we finally get the leaf page
       auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>((*page)->GetData());
@@ -215,9 +216,10 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   // ToString(reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData()), buffer_pool_manager_);
 
   Page *page = nullptr;
+  root_page_mutex_.lock();
   if (!GetLeafPageOfKey(key, &page, false, OperationType::SearchKey, transaction)) {
     // the key doesn't exist
-    // std::cout << "[DEBUG] key " << key << " doesn't exist.\n";
+    std::cout << "[DEBUG] key " << key << " doesn't exist.\n";
     auto b_plus_tree_page = reinterpret_cast<BPlusTreePage*>(page->GetData());
     if (b_plus_tree_page->IsRootPage()) {
       // root page has a mutex
@@ -233,6 +235,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   ValueType value;
   leaf_page->Lookup(key, &value, comparator_);
   result->push_back(value);
+  // std::cout << "[DEBUG] search key " << key << " in page " << page->GetPageId() << "\n";
 
   // we can safely release this node's lock
   auto b_plus_tree_page = reinterpret_cast<BPlusTreePage*>(page->GetData());
@@ -313,7 +316,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   auto leaf_page = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE*>(page->GetData());
   int leaf_size = leaf_page->Insert(key, value, comparator_);
   assert(leaf_size  != -1);
-  // std::cout << "[DEBUG] insert key " << key << " value " << value << std::endl;
+  // std::cout << "[DEBUG] insert key " << key << " into page " << leaf_page->GetPageId() << std::endl;
 
   if (leaf_size == leaf_max_size_) {
     // the leaf is full
@@ -480,7 +483,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 
   // delete the key from this leaf
   int leaf_size = leaf_page->RemoveAndDeleteRecord(key, comparator_);
-  // std::cout << "[DEBUG] delete key " << key << std::endl;
+  // std::cout << "[DEBUG] delete key " << key << " in page " << leaf_page->GetPageId() << std::endl;
 
   if (leaf_size < leaf_page->GetMinSize()) {
     // we need to merge or redistribute the leaf  
@@ -534,10 +537,17 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   int index = parent_page->ValueIndex(node->GetPageId());
   if (index > 0) {
     // check its left sibling page
+
     left_page_id = parent_page->ValueAt(index-1);
-    left_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(left_page_id)->GetData());
+    Page *left_raw_page = buffer_pool_manager_->FetchPage(left_page_id);
+    left_raw_page->WLatch();
+    transaction->AddIntoPageSet(left_raw_page);
+    // to keep pin cnt consistant
+    buffer_pool_manager_->FetchPage(left_page_id);
+    left_page = reinterpret_cast<BPlusTreePage*>(left_raw_page->GetData());
     assert(left_page != nullptr);
-    LOG_DEBUG("left size %d index %d", left_page->GetSize(), index-1);  
+
+    // LOG_DEBUG("left size %d index %d", left_page->GetSize(), index-1);  
     if (left_page->GetSize() > left_page->GetMinSize()) {
       // the left sibling page can give a kv to the node
       auto left_n_page = reinterpret_cast<N*>(left_page);
@@ -565,9 +575,14 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (index < parent_page->GetSize()-1) {
     // check its right sibling page
     right_page_id = parent_page->ValueAt(index+1);
-    right_page = reinterpret_cast<BPlusTreePage*>(buffer_pool_manager_->FetchPage(right_page_id)->GetData());
+    Page *right_raw_page = buffer_pool_manager_->FetchPage(right_page_id);
+    right_raw_page->WLatch();
+    transaction->AddIntoPageSet(right_raw_page);
+    // to keep pin cnt consistant
+    buffer_pool_manager_->FetchPage(right_page_id);
+    right_page = reinterpret_cast<BPlusTreePage*>(right_raw_page->GetData());
     assert(right_page != nullptr);
-    LOG_DEBUG("right size %d index %d", right_page->GetSize(), index+1);  
+    // LOG_DEBUG("right size %d index %d", right_page->GetSize(), index+1);  
     if (right_page->GetSize() > right_page->GetMinSize()) {
       // the right sibling page can give a kv to the node
       auto right_n_page = reinterpret_cast<N*>(right_page);
@@ -581,6 +596,9 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
       parent_page->SetKeyAt(index+1, right_n_page->KeyAt(1));
       Redistribute(right_n_page, node, 0);
 
+      if (left_page_id != INVALID_PAGE_ID) {
+        assert(buffer_pool_manager_->UnpinPage(left_page_id, true));
+      }
       assert(buffer_pool_manager_->UnpinPage(parent_page_id, false));
       assert(buffer_pool_manager_->UnpinPage(right_page_id, true));
       assert(buffer_pool_manager_->UnpinPage(node->GetPageId(), true));
@@ -593,6 +611,9 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   // 2) or we can only coalesce the page with its left sibling page(if any)
   if (left_page_id != INVALID_PAGE_ID) {
     // merge left sibling
+    if (right_page_id != INVALID_PAGE_ID) {
+      assert(buffer_pool_manager_->UnpinPage(right_page_id, true));
+    }
     auto left_n_page = reinterpret_cast<N*>(left_page);
     return Coalesce(&left_n_page, &node, &parent_page, index, transaction);
     // buffer_pool_manager_->UnpinPage(left_page_id, true);
@@ -640,9 +661,11 @@ bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
     intern_node->MoveAllTo(neighbor_intern_node, (*parent)->KeyAt(index), buffer_pool_manager_);
   }
 
+  // (*parent)->Remove(index);
+
   // TODO(greenhandzpx) not sure whether add to the delete page set
   assert(transaction != nullptr);
-  LOG_DEBUG("page id %u add into delete page set", (*node)->GetPageId());
+  // LOG_DEBUG("page id %u add into delete page set", (*node)->GetPageId());
   transaction->AddIntoDeletedPageSet((*node)->GetPageId());
   // UnLcokAndUnpinLastPage(transaction, OperationType::DeleteKey);
   // buffer_pool_manager_->DeletePage((*node)->GetPageId());
@@ -740,7 +763,7 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node, Transaction *trans
     assert(buffer_pool_manager_->UnpinPage(leaf_child->GetPageId(), true));
     assert(buffer_pool_manager_->UnpinPage(old_root_node->GetPageId(), true));
     // UnLockAndUnpinPages(transaction, OperationType::DeleteKey);
-    LOG_DEBUG("page id %u add into delete page set", old_root_node->GetPageId());
+    // LOG_DEBUG("page id %u add into delete page set", old_root_node->GetPageId());
     transaction->AddIntoDeletedPageSet(old_root_node->GetPageId());
     // buffer_pool_manager_->DeletePage(old_root_node->GetPageId());
     root_page_mutex_.unlock();
@@ -752,7 +775,7 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node, Transaction *trans
     root_page_id_ = INVALID_PAGE_ID;
     UpdateRootPageId();
     assert(buffer_pool_manager_->UnpinPage(old_root_node->GetPageId(), true));
-    LOG_DEBUG("page id %u add into delete page set", old_root_node->GetPageId());
+    // LOG_DEBUG("page id %u add into delete page set", old_root_node->GetPageId());
     transaction->AddIntoDeletedPageSet(old_root_node->GetPageId());
     // buffer_pool_manager_->DeletePage(old_root_node->GetPageId());
     root_page_mutex_.unlock();

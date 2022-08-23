@@ -144,7 +144,7 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
   std::lock_guard<std::mutex> guard(latch_);
   // if (page_id < 3) {
-  // LOG_DEBUG("fetch page:%d", page_id);
+  // LOG_DEBUG("fetch page:%d.", page_id);
   // }
   if (page_table_.find(page_id) == page_table_.end()) {
     // P doesn't exist
@@ -236,7 +236,7 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
     return false;
   }
   // if (page_id < 3) {
-  //   LOG_DEBUG("unpin page:%d, is_dirty:%d", page_id, is_dirty);
+  // LOG_DEBUG("unpin page:%d, is_dirty:%d", page_id, is_dirty);
   // }
 
   // Quite important!
